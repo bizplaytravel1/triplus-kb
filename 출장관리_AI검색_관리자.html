@@ -4,11 +4,15 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>출장관리 AI검색 — 관리자</title>
+<!-- Firebase & SheetJS: head에서 로드 → body 스크립트 실행 전 반드시 준비됨 -->
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&display=swap');
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Noto Sans KR',sans-serif;background:#f0f4ff;color:#1a1f36;min-height:100vh}
-
 #login-screen{display:flex;align-items:center;justify-content:center;min-height:100vh;padding:20px}
 .login-card{background:#fff;border:1px solid #d0d9ee;border-radius:20px;padding:48px 40px;max-width:440px;width:100%;text-align:center;box-shadow:0 8px 40px rgba(37,99,235,.1)}
 .login-logo{font-size:48px;margin-bottom:16px}
@@ -18,7 +22,6 @@ body{font-family:'Noto Sans KR',sans-serif;background:#f0f4ff;color:#1a1f36;min-
 .google-btn{display:flex;align-items:center;gap:12px;background:#fff;border:1.5px solid #d0d9ee;border-radius:12px;padding:14px 24px;font-size:15px;font-family:'Noto Sans KR',sans-serif;cursor:pointer;transition:all .2s;width:100%;justify-content:center;font-weight:500}
 .google-btn:hover{border-color:#2563eb;box-shadow:0 4px 16px rgba(37,99,235,.15)}
 .login-err{color:#ef4444;font-size:12px;margin-top:14px;padding:10px 14px;background:#fef2f2;border-radius:8px;display:none;text-align:left}
-
 #admin-app{display:none}
 header{background:#1a1f36;padding:0 24px;display:flex;align-items:center;gap:16px;position:sticky;top:0;z-index:100;height:58px}
 .hdr-logo{font-size:15px;font-weight:700;color:#fff;white-space:nowrap}
@@ -27,9 +30,7 @@ header{background:#1a1f36;padding:0 24px;display:flex;align-items:center;gap:16p
 .user-chip{font-size:11px;color:#94a3c0;background:rgba(255,255,255,.1);border-radius:20px;padding:4px 12px;white-space:nowrap}
 .logout-btn{background:none;border:1px solid rgba(255,255,255,.2);border-radius:8px;padding:5px 12px;font-size:12px;cursor:pointer;color:#94a3c0;font-family:'Noto Sans KR',sans-serif;transition:all .2s;white-space:nowrap}
 .logout-btn:hover{border-color:#ef4444;color:#ef4444}
-
 .layout{display:flex;min-height:calc(100vh - 58px)}
-
 .sidebar{width:220px;background:#fff;border-right:1px solid #e2e8f0;flex-shrink:0;position:sticky;top:58px;height:calc(100vh - 58px);overflow-y:auto}
 .sb-section{padding:14px 0 4px}
 .sb-label{font-size:10px;font-weight:700;color:#94a3c0;letter-spacing:.08em;padding:0 16px 6px;text-transform:uppercase}
@@ -39,13 +40,11 @@ header{background:#1a1f36;padding:0 24px;display:flex;align-items:center;gap:16p
 .sb-cnt{margin-left:auto;background:#f1f5f9;border-radius:10px;padding:1px 6px;font-size:10px;font-family:monospace;color:#94a3c0;min-width:24px;text-align:center;flex-shrink:0}
 .sb-item.active .sb-cnt{background:#dbeafe;color:#2563eb}
 .sb-indent{padding-left:26px}
-
 .content{flex:1;padding:24px 28px;min-width:0}
 .page-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;gap:12px;flex-wrap:wrap}
 .page-title{font-size:19px;font-weight:700;display:flex;align-items:center;gap:8px}
 .page-title small{font-size:13px;font-weight:400;color:#94a3c0}
 .page-actions{display:flex;gap:8px;flex-wrap:wrap}
-
 .btn{border:none;border-radius:9px;padding:8px 16px;font-size:13px;cursor:pointer;font-family:'Noto Sans KR',sans-serif;font-weight:600;transition:all .15s;white-space:nowrap}
 .btn-primary{background:#2563eb;color:#fff}.btn-primary:hover{background:#1d4ed8}
 .btn-success{background:#059669;color:#fff}.btn-success:hover{background:#047857}
@@ -54,8 +53,6 @@ header{background:#1a1f36;padding:0 24px;display:flex;align-items:center;gap:16p
 .btn-warn{background:#f59e0b;color:#fff}.btn-warn:hover{background:#d97706}
 .btn-purple{background:#7c3aed;color:#fff}.btn-purple:hover{background:#6d28d9}
 .btn-sm{padding:4px 10px;font-size:11px;border-radius:6px}
-
-/* ── 검색 툴바 (debounce 적용) ── */
 .toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
 .search-wrap{position:relative}
 .search-inp{background:#fff;border:1.5px solid #e2e8f0;border-radius:9px;padding:8px 36px 8px 13px;font-size:13px;font-family:'Noto Sans KR',sans-serif;color:#1a1f36;outline:none;transition:border-color .2s;width:260px}
@@ -66,31 +63,27 @@ header{background:#1a1f36;padding:0 24px;display:flex;align-items:center;gap:16p
 .fchip{background:#f1f5f9;border:1.5px solid #e2e8f0;border-radius:20px;padding:4px 12px;font-size:12px;cursor:pointer;font-family:'Noto Sans KR',sans-serif;color:#4b5680;transition:all .15s}
 .fchip:hover{border-color:#2563eb;color:#2563eb}
 .fchip.on{background:#eff6ff;border-color:#2563eb;color:#2563eb;font-weight:600}
-
 .tbl-wrap{background:#fff;border:1px solid #e2e8f0;border-radius:14px;overflow:hidden}
 .dtbl{width:100%;border-collapse:collapse;font-size:13px}
 .dtbl th{background:#f8fafc;color:#4b5680;padding:10px 12px;text-align:left;font-weight:600;font-size:11px;border-bottom:1.5px solid #e2e8f0;white-space:nowrap}
 .dtbl td{padding:10px 12px;border-bottom:1px solid #f1f5f9;color:#1a1f36;vertical-align:top;line-height:1.6}
 .dtbl tr:last-child td{border-bottom:none}
 .dtbl tr:hover td{background:#fafbff}
-.dtbl tr.new-row td{background:#f0fdf4;animation:fadeNew 2s forwards}
-@keyframes fadeNew{0%{background:#bbf7d0}100%{background:#f0fdf4}}
+.dtbl tr.new-row td{animation:fadeNew 3s forwards}
+@keyframes fadeNew{0%{background:#bbf7d0}100%{background:transparent}}
 .clip{max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .clip-lg{max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#4b5680}
 .td-r{text-align:right;white-space:nowrap}
-
 .tag{display:inline-block;font-size:10px;padding:2px 7px;border-radius:10px;font-weight:600;white-space:nowrap}
 .t-tp{background:#d1fae5;color:#065f46}.t-oc{background:#ffedd5;color:#92400e}
 .t-policy{background:#dbeafe;color:#1d4ed8}.t-ny{background:#fef9c3;color:#854d0e}
 .t-ov{background:#fae8ff;color:#7e22ce}.t-etc{background:#f1f5f9;color:#4b5680}
 .t-xs{background:#fee2e2;color:#991b1b}.t-ok{background:#d1fae5;color:#065f46}.t-off{background:#f1f5f9;color:#94a3c0}
-
 .pager{display:flex;align-items:center;justify-content:space-between;padding:11px 14px;border-top:1px solid #e2e8f0;font-size:12px;color:#94a3c0;flex-wrap:wrap;gap:8px}
 .pager-btns{display:flex;gap:3px}
 .pb{background:#fff;border:1px solid #e2e8f0;border-radius:6px;padding:4px 10px;font-size:12px;cursor:pointer;font-family:'Noto Sans KR',sans-serif;color:#4b5680;transition:all .15s}
 .pb:hover{border-color:#2563eb;color:#2563eb}.pb:disabled{opacity:.35;cursor:not-allowed}
 .pb.on{background:#2563eb;color:#fff;border-color:#2563eb}
-
 .modal-bg{display:none;position:fixed;inset:0;z-index:3000;background:rgba(0,0,0,.5);align-items:center;justify-content:center;padding:20px}
 .modal-bg.open{display:flex}
 .modal{background:#fff;border-radius:18px;padding:28px;width:100%;max-width:580px;max-height:90vh;overflow-y:auto;box-shadow:0 24px 64px rgba(0,0,0,.25)}
@@ -106,8 +99,6 @@ header{background:#1a1f36;padding:0 24px;display:flex;align-items:center;gap:16p
 .modal-del{margin-right:auto}
 .modal-msg{font-size:12px;text-align:right;margin-top:6px;min-height:14px;color:#059669}
 .modal-msg.err{color:#ef4444}
-
-/* ── 엑셀 업로드 모달 ── */
 .xl-modal{max-width:640px}
 .xl-zone{border:2px dashed #d0d9ee;border-radius:12px;padding:32px;text-align:center;cursor:pointer;transition:all .2s;background:#f8fafc;margin-bottom:16px}
 .xl-zone:hover,.xl-zone.drag{border-color:#2563eb;background:#eff6ff}
@@ -123,11 +114,9 @@ header{background:#1a1f36;padding:0 24px;display:flex;align-items:center;gap:16p
 .xl-stat strong{color:#2563eb}
 .xl-prog{background:#e2e8f0;border-radius:6px;height:8px;margin-top:8px;overflow:hidden;display:none}
 .xl-prog-bar{background:linear-gradient(90deg,#2563eb,#059669);height:8px;border-radius:6px;width:0%;transition:width .3s}
-
 .doc{background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:36px;line-height:1.9;font-size:14px;max-width:800px}
 .doc h2{font-size:17px;font-weight:700;color:#2563eb;margin:28px 0 10px;padding-bottom:8px;border-bottom:2px solid #eff6ff}
 .doc h2:first-child{margin-top:0}
-.doc h3{font-size:14px;font-weight:700;color:#1a1f36;margin:16px 0 6px}
 .doc p,.doc li{color:#4b5680;margin-bottom:8px}
 .doc ul{padding-left:20px;margin-bottom:10px}
 .doc .ibox{background:#eff6ff;border:1px solid #bfdbfe;border-left:4px solid #2563eb;border-radius:8px;padding:12px 16px;margin:10px 0;font-size:13px;color:#1e40af}
@@ -155,7 +144,7 @@ header{background:#1a1f36;padding:0 24px;display:flex;align-items:center;gap:16p
     <div class="login-title">출장관리 AI검색 관리자</div>
     <div class="login-sub">현대자동차 트리플러스 지식베이스<br>허가된 구글 계정으로만 접근 가능합니다.</div>
     <div class="login-warn">⚠️ 이 페이지는 반드시 <strong>GitHub Pages</strong>에서 열어야 합니다.<br>로컬 파일(file://)에서는 구글 로그인이 작동하지 않아요.</div>
-    <button class="google-btn" onclick="signIn()">
+    <button class="google-btn" id="login-btn">
       <svg width="20" height="20" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.31-8.16 2.31-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
       Google 계정으로 로그인
     </button>
@@ -171,37 +160,37 @@ header{background:#1a1f36;padding:0 24px;display:flex;align-items:center;gap:16p
     </div>
     <div class="hdr-right">
       <span class="user-chip" id="uem"></span>
-      <button class="logout-btn" onclick="doSignOut()">로그아웃</button>
+      <button class="logout-btn" id="logout-btn">로그아웃</button>
     </div>
   </header>
   <div class="layout">
     <div class="sidebar">
       <div class="sb-section">
         <div class="sb-label">💬 Q&A 관리</div>
-        <div class="sb-item active" id="sb-qa" onclick="go('qa')">💬 Q&A 전체 <span class="sb-cnt" id="cn-qa">-</span></div>
-        <div class="sb-item sb-indent" id="sb-qa-tp" onclick="go('qa-tp')">트리플러스 <span class="sb-cnt" id="cn-qa-tp">-</span></div>
-        <div class="sb-item sb-indent" id="sb-qa-oc" onclick="go('qa-oc')">오큐파이 <span class="sb-cnt" id="cn-qa-oc">-</span></div>
+        <div class="sb-item active" id="sb-qa" data-tab="qa">💬 Q&A 전체 <span class="sb-cnt" id="cn-qa">-</span></div>
+        <div class="sb-item sb-indent" id="sb-qa-tp" data-tab="qa-tp">트리플러스 <span class="sb-cnt" id="cn-qa-tp">-</span></div>
+        <div class="sb-item sb-indent" id="sb-qa-oc" data-tab="qa-oc">오큐파이 <span class="sb-cnt" id="cn-qa-oc">-</span></div>
       </div>
       <div class="sb-section">
         <div class="sb-label">📄 매뉴얼 관리</div>
-        <div class="sb-item" id="sb-man" onclick="go('man')">📄 매뉴얼 전체 <span class="sb-cnt" id="cn-man">-</span></div>
-        <div class="sb-item sb-indent" id="sb-man-policy" onclick="go('man-policy')">출장·운영정책 <span class="sb-cnt" id="cn-man-policy">-</span></div>
-        <div class="sb-item sb-indent" id="sb-man-ny" onclick="go('man-ny')">남양연구소 <span class="sb-cnt" id="cn-man-ny">-</span></div>
-        <div class="sb-item sb-indent" id="sb-man-ov" onclick="go('man-ov')">해외출장 <span class="sb-cnt" id="cn-man-ov">-</span></div>
-        <div class="sb-item sb-indent" id="sb-man-etc" onclick="go('man-etc')">기타 매뉴얼 <span class="sb-cnt" id="cn-man-etc">-</span></div>
+        <div class="sb-item" id="sb-man" data-tab="man">📄 매뉴얼 전체 <span class="sb-cnt" id="cn-man">-</span></div>
+        <div class="sb-item sb-indent" id="sb-man-policy" data-tab="man-policy">출장·운영정책 <span class="sb-cnt" id="cn-man-policy">-</span></div>
+        <div class="sb-item sb-indent" id="sb-man-ny" data-tab="man-ny">남양연구소 <span class="sb-cnt" id="cn-man-ny">-</span></div>
+        <div class="sb-item sb-indent" id="sb-man-ov" data-tab="man-ov">해외출장 <span class="sb-cnt" id="cn-man-ov">-</span></div>
+        <div class="sb-item sb-indent" id="sb-man-etc" data-tab="man-etc">기타 매뉴얼 <span class="sb-cnt" id="cn-man-etc">-</span></div>
       </div>
       <div class="sb-section">
         <div class="sb-label">📊 테이블 관리</div>
-        <div class="sb-item" id="sb-jungbig" onclick="go('jungbig')">📋 증빙규정 <span class="sb-cnt" id="cn-jungbig">-</span></div>
-        <div class="sb-item" id="sb-sukbak" onclick="go('sukbak')">🏠 숙박비규정 <span class="sb-cnt" id="cn-sukbak">-</span></div>
-        <div class="sb-item" id="sb-yowei" onclick="go('yowei')">📍 예외거리구간 <span class="sb-cnt" id="cn-yowei">-</span></div>
-        <div class="sb-item" id="sb-gita" onclick="go('gita')">🚌 기타교통수단 <span class="sb-cnt" id="cn-gita">-</span></div>
+        <div class="sb-item" id="sb-jungbig" data-tab="jungbig">📋 증빙규정 <span class="sb-cnt" id="cn-jungbig">-</span></div>
+        <div class="sb-item" id="sb-sukbak" data-tab="sukbak">🏠 숙박비규정 <span class="sb-cnt" id="cn-sukbak">-</span></div>
+        <div class="sb-item" id="sb-yowei" data-tab="yowei">📍 예외거리구간 <span class="sb-cnt" id="cn-yowei">-</span></div>
+        <div class="sb-item" id="sb-gita" data-tab="gita">🚌 기타교통수단 <span class="sb-cnt" id="cn-gita">-</span></div>
       </div>
       <div class="sb-section">
         <div class="sb-label">⚙️ 설정 &amp; 도움말</div>
-        <div class="sb-item" id="sb-accounts" onclick="go('accounts')">👤 관리자 계정</div>
-        <div class="sb-item" id="sb-help-search" onclick="go('help-search')">📘 AI검색 사용방법</div>
-        <div class="sb-item" id="sb-help-admin" onclick="go('help-admin')">🔑 관리자 사용방법</div>
+        <div class="sb-item" id="sb-accounts" data-tab="accounts">👤 관리자 계정</div>
+        <div class="sb-item" id="sb-help-search" data-tab="help-search">📘 AI검색 사용방법</div>
+        <div class="sb-item" id="sb-help-admin" data-tab="help-admin">🔑 관리자 사용방법</div>
       </div>
     </div>
     <div class="content" id="main"></div>
@@ -209,32 +198,29 @@ header{background:#1a1f36;padding:0 24px;display:flex;align-items:center;gap:16p
 </div>
 
 <!-- 편집 모달 -->
-<div class="modal-bg" id="modal" onclick="if(event.target===this)closeModal()">
+<div class="modal-bg" id="modal">
   <div class="modal">
     <div class="modal-title" id="modal-title"></div>
     <div id="modal-body"></div>
     <div class="modal-foot">
-      <button class="btn btn-danger btn-sm modal-del" id="del-btn" onclick="doDelete()" style="display:none">🗑️ 삭제</button>
-      <button class="btn btn-ghost" onclick="closeModal()">취소</button>
-      <button class="btn btn-primary" onclick="doSave()">💾 저장</button>
+      <button class="btn btn-danger btn-sm modal-del" id="del-btn" style="display:none">🗑️ 삭제</button>
+      <button class="btn btn-ghost" id="modal-cancel">취소</button>
+      <button class="btn btn-primary" id="modal-save">💾 저장</button>
     </div>
     <div class="modal-msg" id="modal-msg"></div>
   </div>
 </div>
 
 <!-- 엑셀 업로드 모달 -->
-<div class="modal-bg" id="xl-modal" onclick="if(event.target===this)closeXlModal()">
+<div class="modal-bg" id="xl-modal">
   <div class="modal xl-modal">
-    <div class="modal-title">📊 Q&A 일괄 등록 (엑셀)</div>
+    <div class="modal-title">📊 Q&amp;A 일괄 등록 (엑셀)</div>
     <div style="display:flex;gap:8px;margin-bottom:16px">
-      <button class="btn btn-ghost" onclick="downloadSample()">📥 예시 엑셀 다운로드</button>
+      <button class="btn btn-ghost" id="dl-sample-btn">📥 예시 엑셀 다운로드</button>
       <span style="font-size:12px;color:#94a3c0;align-self:center">← 먼저 양식 다운로드 후 작성하세요</span>
     </div>
-    <div class="xl-zone" id="xl-zone" onclick="document.getElementById('xl-file').click()"
-         ondragover="event.preventDefault();this.classList.add('drag')"
-         ondragleave="this.classList.remove('drag')"
-         ondrop="event.preventDefault();this.classList.remove('drag');handleXlFile(event.dataTransfer.files[0])">
-      <input type="file" id="xl-file" accept=".xlsx,.xls" onchange="handleXlFile(this.files[0])">
+    <div class="xl-zone" id="xl-zone">
+      <input type="file" id="xl-file" accept=".xlsx,.xls">
       <div class="xl-icon">📂</div>
       <div class="xl-text">클릭하거나 파일을 여기로 드래그<br><strong>.xlsx / .xls</strong> 파일만 가능</div>
     </div>
@@ -242,18 +228,19 @@ header{background:#1a1f36;padding:0 24px;display:flex;align-items:center;gap:16p
     <div class="xl-preview" id="xl-preview"></div>
     <div class="xl-prog" id="xl-prog"><div class="xl-prog-bar" id="xl-prog-bar"></div></div>
     <div class="modal-foot">
-      <button class="btn btn-ghost" onclick="closeXlModal()">취소</button>
-      <button class="btn btn-success" id="xl-upload-btn" onclick="doXlUpload()" style="display:none">🚀 일괄 등록하기</button>
+      <button class="btn btn-ghost" id="xl-cancel">취소</button>
+      <button class="btn btn-success" id="xl-upload-btn" style="display:none">🚀 일괄 등록하기</button>
     </div>
     <div class="modal-msg" id="xl-msg"></div>
   </div>
 </div>
 
-<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<!-- ★ 메인 스크립트: body 맨 끝 → DOM + Firebase 모두 로드된 후 실행 보장 -->
 <script>
+(function(){
+'use strict';
+
+/* ── Firebase 초기화 ── */
 firebase.initializeApp({
   apiKey:"AIzaSyCvUli2EwQiaEdWtQdpFHmqIhtTbnbixaE",
   authDomain:"bizplay-kb.firebaseapp.com",
@@ -263,54 +250,46 @@ firebase.initializeApp({
   appId:"1:424940526706:web:9857867a77bfdfdafff6eb"
 });
 var db=firebase.firestore(), auth=firebase.auth();
+
+/* ── 상태 ── */
 var CU=null, ALLOWED=[], DATA={qa:[],manual:[],tables:{},accounts:[]};
 var TAB='qa', PAGE=50, CUR=1, KW='', FILTER='all';
-var EDIT_ID=null, EDIT_COL=null, EDIT_TBL=null;
-var LAST_NEW_ID=null; // 마지막에 추가/수정한 항목 ID
-var XL_ROWS=[]; // 엑셀 파싱 결과
+var EDIT_ID=null, EDIT_COL=null, EDIT_TBL=null, LAST_NEW_ID=null, XL_ROWS=[], XL_SRC='트리플러스';
 
-// ── 디바운스 유틸 ─────────────────────────────────────
-function debounce(fn, delay){
-  var timer=null;
-  return function(){
-    var args=arguments, ctx=this;
-    clearTimeout(timer);
-    timer=setTimeout(function(){fn.apply(ctx,args);},delay);
-  };
-}
-// 검색 300ms 디바운스 - 키 입력마다 리렌더링 방지
+/* ── 디바운스 ── */
+function debounce(fn,d){var t=null;return function(){var a=arguments,ctx=this;clearTimeout(t);t=setTimeout(function(){fn.apply(ctx,a);},d);};}
 var debouncedSearch=debounce(function(v){KW=v;CUR=1;render();},300);
 
-// ── 인증 ─────────────────────────────────────────────
-async function signIn(){
-  if(location.protocol==='file:'){showErr('⚠️ GitHub Pages 주소에서 열어주세요.');return;}
+/* ── 인증 ── */
+function signIn(){
+  if(location.protocol==='file:'){showLoginErr('⚠️ GitHub Pages 주소에서 열어주세요.');return;}
   var p=new firebase.auth.GoogleAuthProvider();
-  try{await auth.signInWithPopup(p);}
-  catch(e){
-    if(e.code==='auth/popup-blocked'||e.code==='auth/popup-closed-by-user')await auth.signInWithRedirect(p);
-    else showErr('로그인 실패: '+e.message);
-  }
+  auth.signInWithPopup(p).catch(function(e){
+    if(e.code==='auth/popup-blocked'||e.code==='auth/popup-closed-by-user'){auth.signInWithRedirect(p);}
+    else showLoginErr('로그인 실패: '+e.message);
+  });
 }
-window.signIn=signIn;
-async function doSignOut(){await auth.signOut();location.reload();}
-window.doSignOut=doSignOut;
-function showErr(m){var el=document.getElementById('login-err');el.textContent=m;el.style.display='block';}
-auth.getRedirectResult().catch(function(e){if(e.code)showErr(e.message);});
+function showLoginErr(m){var el=document.getElementById('login-err');el.textContent=m;el.style.display='block';}
 
+auth.getRedirectResult().catch(function(e){if(e.code)showLoginErr(e.message);});
 auth.onAuthStateChanged(async function(u){
-  if(!u){document.getElementById('login-screen').style.display='flex';document.getElementById('admin-app').style.display='none';return;}
+  if(!u){
+    document.getElementById('login-screen').style.display='flex';
+    document.getElementById('admin-app').style.display='none';
+    return;
+  }
   try{var s=await db.collection('admin_accounts').get();ALLOWED=s.docs.map(function(d){return d.data().email;});}catch(e){}
-  if(ALLOWED.length>0&&ALLOWED.indexOf(u.email)<0){auth.signOut();showErr('❌ 접근 불가: '+u.email);return;}
+  if(ALLOWED.length>0&&ALLOWED.indexOf(u.email)<0){auth.signOut();showLoginErr('❌ 접근 불가: '+u.email);return;}
   CU=u;
   document.getElementById('login-screen').style.display='none';
   document.getElementById('admin-app').style.display='block';
   document.getElementById('uem').textContent=u.email;
-  main().innerHTML='<div class="loading"><div class="spin"></div><br>데이터 로딩 중...</div>';
+  document.getElementById('main').innerHTML='<div class="loading"><div class="spin"></div><br>데이터 로딩 중...</div>';
   await loadAll();
   go('qa');
 });
 
-// ── 데이터 로드 ──────────────────────────────────────
+/* ── 데이터 로드 ── */
 async function loadAll(){
   var[q,m,t,a]=await Promise.all([
     db.collection('qa').get(),
@@ -321,19 +300,13 @@ async function loadAll(){
   DATA.qa=q.docs.map(function(d){return Object.assign({_id:d.id},d.data());});
   DATA.manual=m.docs.map(function(d){return Object.assign({_id:d.id},d.data());});
   DATA.tables={};
-  t.docs.forEach(function(d){
-    var r=Object.assign({_id:d.id},d.data());
-    var tn=r.tableName;
-    if(!DATA.tables[tn])DATA.tables[tn]=[];
-    DATA.tables[tn].push(r);
-  });
+  t.docs.forEach(function(d){var r=Object.assign({_id:d.id},d.data());var tn=r.tableName;if(!DATA.tables[tn])DATA.tables[tn]=[];DATA.tables[tn].push(r);});
   DATA.accounts=a.docs.map(function(d){return Object.assign({_id:d.id},d.data());});
   updateCounts();
 }
-
 function sc(id,n){var el=document.getElementById(id);if(el)el.textContent=n;}
 function updateCounts(){
-  var qa=DATA.qa, man=DATA.manual;
+  var qa=DATA.qa,man=DATA.manual;
   sc('cn-qa',qa.length);
   sc('cn-qa-tp',qa.filter(function(r){return r.s==='트리플러스';}).length);
   sc('cn-qa-oc',qa.filter(function(r){return r.s==='오큐파이';}).length);
@@ -341,321 +314,231 @@ function updateCounts(){
   sc('cn-man-policy',man.filter(function(r){return r.s==='출장정책'||r.s==='운영정책';}).length);
   sc('cn-man-ny',man.filter(function(r){return r.s==='남양연구소'||r.s==='남양연구소-시내교통비';}).length);
   sc('cn-man-ov',man.filter(function(r){return r.s==='해외출장을위한이동';}).length);
-  var ETC=['출장정책','운영정책','남양연구소','남양연구소-시내교통비','해외출장을위한이동'];
-  sc('cn-man-etc',man.filter(function(r){return ETC.indexOf(r.s)<0;}).length);
+  var ET=['출장정책','운영정책','남양연구소','남양연구소-시내교통비','해외출장을위한이동'];
+  sc('cn-man-etc',man.filter(function(r){return ET.indexOf(r.s)<0;}).length);
   sc('cn-jungbig',(DATA.tables['증빙규정']||[]).length);
   sc('cn-sukbak',(DATA.tables['숙박비규정']||[]).length);
   sc('cn-yowei',(DATA.tables['예외거리허용구간']||[]).length);
   sc('cn-gita',(DATA.tables['기타교통수단구간']||[]).length);
 }
 
-function main(){return document.getElementById('main');}
-function esc(s){return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
-
-// ── 탭 이동 ──────────────────────────────────────────
+/* ── 탭 이동 ── */
 function go(tab){
   TAB=tab;CUR=1;KW='';FILTER='all';LAST_NEW_ID=null;
   document.querySelectorAll('.sb-item').forEach(function(e){e.classList.remove('active');});
   var sb=document.getElementById('sb-'+tab);if(sb)sb.classList.add('active');
   render();
 }
-window.go=go;
 
+/* ── 렌더 ── */
 function render(){
-  if(TAB==='qa')              renderQA(null);
-  else if(TAB==='qa-tp')      renderQA('트리플러스');
-  else if(TAB==='qa-oc')      renderQA('오큐파이');
-  else if(TAB==='man')         renderMan(null,'📄 매뉴얼 전체');
-  else if(TAB==='man-policy')  renderMan(['출장정책','운영정책'],'📋 출장·운영정책');
-  else if(TAB==='man-ny')      renderMan(['남양연구소','남양연구소-시내교통비'],'🚗 남양연구소');
-  else if(TAB==='man-ov')      renderMan(['해외출장을위한이동'],'✈️ 해외출장');
-  else if(TAB==='man-etc')     renderManEtc();
-  else if(TAB==='jungbig')  renderTbl('증빙규정','📋 증빙규정');
-  else if(TAB==='sukbak')   renderTbl('숙박비규정','🏠 숙박비규정');
-  else if(TAB==='yowei')    renderTbl('예외거리허용구간','📍 예외거리구간');
-  else if(TAB==='gita')     renderTbl('기타교통수단구간','🚌 기타교통수단');
-  else if(TAB==='accounts')    renderAccounts();
-  else if(TAB==='help-search') renderHelpSearch();
-  else if(TAB==='help-admin')  renderHelpAdmin();
+  var m=document.getElementById('main');
+  if(TAB==='qa')          renderQA(m,null);
+  else if(TAB==='qa-tp')  renderQA(m,'트리플러스');
+  else if(TAB==='qa-oc')  renderQA(m,'오큐파이');
+  else if(TAB==='man')         renderMan(m,null,'📄 매뉴얼 전체');
+  else if(TAB==='man-policy')  renderMan(m,['출장정책','운영정책'],'📋 출장·운영정책');
+  else if(TAB==='man-ny')      renderMan(m,['남양연구소','남양연구소-시내교통비'],'🚗 남양연구소');
+  else if(TAB==='man-ov')      renderMan(m,['해외출장을위한이동'],'✈️ 해외출장');
+  else if(TAB==='man-etc')     renderManEtc(m);
+  else if(TAB==='jungbig')  renderTbl(m,'증빙규정','📋 증빙규정');
+  else if(TAB==='sukbak')   renderTbl(m,'숙박비규정','🏠 숙박비규정');
+  else if(TAB==='yowei')    renderTbl(m,'예외거리허용구간','📍 예외거리구간');
+  else if(TAB==='gita')     renderTbl(m,'기타교통수단구간','🚌 기타교통수단');
+  else if(TAB==='accounts')    renderAccounts(m);
+  else if(TAB==='help-search') renderHelpSearch(m);
+  else if(TAB==='help-admin')  renderHelpAdmin(m);
 }
 
-// ── 새 항목을 맨 위로 정렬 ──────────────────────────
-function sortWithNew(rows, idKey){
-  if(!LAST_NEW_ID) return rows;
-  var newRow=rows.find(function(r){return r[idKey||'_id']===LAST_NEW_ID;});
-  if(!newRow) return rows;
-  return [newRow].concat(rows.filter(function(r){return r[idKey||'_id']!==LAST_NEW_ID;}));
-}
-
-function getQATag(s){return s==='트리플러스'?'<span class="tag t-tp">트리플러스</span>':s==='오큐파이'?'<span class="tag t-oc">오큐파이</span>':'<span class="tag t-etc">'+esc(s)+'</span>';}
-function getManTag(s){
-  if(s==='출장정책'||s==='운영정책') return '<span class="tag t-policy">'+esc(s)+'</span>';
-  if(s==='남양연구소'||s==='남양연구소-시내교통비') return '<span class="tag t-ny">'+esc(s)+'</span>';
-  if(s==='해외출장을위한이동') return '<span class="tag t-ov">해외출장</span>';
-  return '<span class="tag t-etc">'+esc(s)+'</span>';
-}
-
-function applyFilter(rows,fields){
+function esc(s){return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function sortNew(rows){if(!LAST_NEW_ID)return rows;var n=rows.find(function(r){return r._id===LAST_NEW_ID;});return n?[n].concat(rows.filter(function(r){return r._id!==LAST_NEW_ID;})):rows;}
+function applyKF(rows,fields){
   var r=rows;
-  if(FILTER!=='all') r=r.filter(function(x){return x.s===FILTER;});
+  if(FILTER!=='all')r=r.filter(function(x){return x.s===FILTER;});
   if(KW){var kw=KW.toLowerCase();r=r.filter(function(x){return fields.some(function(f){return (x[f]||'').toLowerCase().indexOf(kw)>=0;});});}
   return r;
 }
-
-// ── Q&A 렌더 ──────────────────────────────────────────
-function renderQA(src){
-  var rows=DATA.qa.filter(function(r){return !src||r.s===src;});
-  rows=applyFilter(rows,['q','a','s','c']);
-  rows=sortWithNew(rows,'_id');
-  var total=rows.length, prows=rows.slice((CUR-1)*PAGE,CUR*PAGE);
-  var title=src?getQATag(src)+' Q&A':'💬 Q&A 전체';
-  var defSrc=src||'트리플러스';
-
-  var h='<div class="page-hdr"><div class="page-title">'+title+' <small>총 '+total+'건</small></div>';
-  h+='<div class="page-actions">';
-  h+='<button class="btn btn-purple" onclick="openXlModal(\''+defSrc+'\')">📊 엑셀 일괄 등록</button>';
-  h+='<button class="btn btn-success" onclick="openAdd(\'qa\',\''+defSrc+'\')">+ Q&A 추가</button>';
-  h+='</div></div>';
-
-  h+='<div class="toolbar"><div class="search-wrap">';
-  h+='<input class="search-inp" id="kw-inp" placeholder="질문, 답변, 소스 검색..." value="'+esc(KW)+'" oninput="handleSearch(this)">';
-  h+='<button class="search-clear'+(KW?' show':'')+'" id="kw-clr" onclick="clearSearch()">✕</button>';
-  h+='</div>';
-  if(!src){
-    h+='<div class="fchips">';
-    [['all','전체'],['트리플러스','트리플러스'],['오큐파이','오큐파이']].forEach(function(f){
-      h+='<span class="fchip'+(FILTER===f[0]?' on':'')+'" onclick="onF(\''+f[0]+'\')">'+f[1]+'</span>';
-    });
-    h+='</div>';
-  }
-  h+='</div>';
-
-  h+='<div class="tbl-wrap"><table class="dtbl"><thead><tr>';
-  h+='<th style="width:85px">소스</th><th style="width:85px">카테고리</th><th>질문</th><th>답변</th><th style="width:50px">AI제외</th><th style="width:60px">관리</th>';
-  h+='</tr></thead><tbody>';
-  if(!prows.length) h+='<tr><td colspan="6" class="empty">검색 결과가 없습니다.</td></tr>';
-  prows.forEach(function(r){
-    var isNew=LAST_NEW_ID&&r._id===LAST_NEW_ID;
-    h+='<tr'+(isNew?' class="new-row"':'')+'>';
-    h+='<td>'+getQATag(r.s)+'</td>';
-    h+='<td style="font-size:11px;color:#94a3c0">'+esc(r.c||'')+'</td>';
-    h+='<td class="clip">'+esc(r.q||'')+'</td>';
-    h+='<td class="clip-lg">'+esc(r.a||'')+'</td>';
-    h+='<td>'+(r.xs?'<span class="tag t-xs">제외</span>':'')+'</td>';
-    h+='<td class="td-r"><button class="btn btn-warn btn-sm" onclick="openEdit(\'qa\',\''+r._id+'\')">수정</button></td></tr>';
-  });
-  h+='</tbody></table>'+mkPager(total)+'</div>';
-  main().innerHTML=h;
+function getQTag(s){return s==='트리플러스'?'<span class="tag t-tp">트리플러스</span>':s==='오큐파이'?'<span class="tag t-oc">오큐파이</span>':'<span class="tag t-etc">'+esc(s)+'</span>';}
+function getMTag(s){
+  if(s==='출장정책'||s==='운영정책')return '<span class="tag t-policy">'+esc(s)+'</span>';
+  if(s==='남양연구소'||s==='남양연구소-시내교통비')return '<span class="tag t-ny">'+esc(s)+'</span>';
+  if(s==='해외출장을위한이동')return '<span class="tag t-ov">해외출장</span>';
+  return '<span class="tag t-etc">'+esc(s)+'</span>';
 }
-
-// ── 매뉴얼 렌더 ──────────────────────────────────────
-var ETC_SRC=['출장정책','운영정책','남양연구소','남양연구소-시내교통비','해외출장을위한이동'];
-function renderMan(sources,title){
-  var rows=DATA.manual.filter(function(r){return !sources||sources.indexOf(r.s)>=0;});
-  rows=applyFilter(rows,['q','a','s','c','it']);
-  rows=sortWithNew(rows,'_id');
-  var total=rows.length, prows=rows.slice((CUR-1)*PAGE,CUR*PAGE);
-  var defSrc=sources?sources[0]:'출장정책';
-
-  var h='<div class="page-hdr"><div class="page-title">'+title+' <small>총 '+total+'건</small></div>';
-  h+='<div class="page-actions"><button class="btn btn-success" onclick="openAdd(\'manual\',\''+defSrc+'\')">+ 항목 추가</button></div></div>';
-  h+='<div class="toolbar"><div class="search-wrap">';
-  h+='<input class="search-inp" id="kw-inp" placeholder="소스, 카테고리, 질문, 답변 검색..." value="'+esc(KW)+'" oninput="handleSearch(this)">';
-  h+='<button class="search-clear'+(KW?' show':'')+'" id="kw-clr" onclick="clearSearch()">✕</button>';
-  h+='</div></div>';
-
-  h+='<div class="tbl-wrap"><table class="dtbl"><thead><tr>';
-  h+='<th style="width:110px">소스</th><th style="width:70px">카테고리</th><th style="width:110px">항목명</th><th>질문</th><th>답변</th><th style="width:50px">AI제외</th><th style="width:60px">관리</th>';
-  h+='</tr></thead><tbody>';
-  if(!prows.length) h+='<tr><td colspan="7" class="empty">검색 결과가 없습니다.</td></tr>';
-  prows.forEach(function(r){
-    var isNew=LAST_NEW_ID&&r._id===LAST_NEW_ID;
-    h+='<tr'+(isNew?' class="new-row"':'')+'>';
-    h+='<td>'+getManTag(r.s)+'</td>';
-    h+='<td style="font-size:11px;color:#94a3c0">'+esc(r.c||'')+'</td>';
-    h+='<td class="clip" style="font-size:11px;color:#4b5680">'+esc(r.it||'')+'</td>';
-    h+='<td class="clip">'+esc(r.q||'')+'</td>';
-    h+='<td class="clip-lg">'+esc(r.a||'')+'</td>';
-    h+='<td>'+(r.xs?'<span class="tag t-xs">제외</span>':'')+'</td>';
-    h+='<td class="td-r"><button class="btn btn-warn btn-sm" onclick="openEdit(\'manual\',\''+r._id+'\')">수정</button></td></tr>';
-  });
-  h+='</tbody></table>'+mkPager(total)+'</div>';
-  main().innerHTML=h;
+function mkSearch(ph){
+  return '<div class="search-wrap"><input class="search-inp" id="kw-inp" placeholder="'+ph+'" value="'+esc(KW)+'"><button class="search-clear'+(KW?' show':'')+'" id="kw-clr">✕</button></div>';
 }
-function renderManEtc(){
-  var rows=DATA.manual.filter(function(r){return ETC_SRC.indexOf(r.s)<0;});
-  rows=applyFilter(rows,['q','a','s','c','it']);
-  rows=sortWithNew(rows,'_id');
-  var total=rows.length, prows=rows.slice((CUR-1)*PAGE,CUR*PAGE);
-
-  var h='<div class="page-hdr"><div class="page-title">📋 기타 매뉴얼 <small>총 '+total+'건</small></div>';
-  h+='<div class="page-actions"><button class="btn btn-success" onclick="openAdd(\'manual\',\'증빙규정\')">+ 항목 추가</button></div></div>';
-  h+='<div class="toolbar"><div class="search-wrap">';
-  h+='<input class="search-inp" id="kw-inp" placeholder="소스, 카테고리, 질문 검색..." value="'+esc(KW)+'" oninput="handleSearch(this)">';
-  h+='<button class="search-clear'+(KW?' show':'')+'" id="kw-clr" onclick="clearSearch()">✕</button>';
-  h+='</div></div>';
-
-  h+='<div class="tbl-wrap"><table class="dtbl"><thead><tr>';
-  h+='<th style="width:110px">소스</th><th style="width:70px">카테고리</th><th style="width:110px">항목명</th><th>질문</th><th>답변</th><th style="width:50px">AI제외</th><th style="width:60px">관리</th>';
-  h+='</tr></thead><tbody>';
-  if(!prows.length) h+='<tr><td colspan="7" class="empty">검색 결과가 없습니다.</td></tr>';
-  prows.forEach(function(r){
-    var isNew=LAST_NEW_ID&&r._id===LAST_NEW_ID;
-    h+='<tr'+(isNew?' class="new-row"':'')+'>';
-    h+='<td>'+getManTag(r.s)+'</td>';
-    h+='<td style="font-size:11px;color:#94a3c0">'+esc(r.c||'')+'</td>';
-    h+='<td class="clip" style="font-size:11px;color:#4b5680">'+esc(r.it||'')+'</td>';
-    h+='<td class="clip">'+esc(r.q||'')+'</td>';
-    h+='<td class="clip-lg">'+esc(r.a||'')+'</td>';
-    h+='<td>'+(r.xs?'<span class="tag t-xs">제외</span>':'')+'</td>';
-    h+='<td class="td-r"><button class="btn btn-warn btn-sm" onclick="openEdit(\'manual\',\''+r._id+'\')">수정</button></td></tr>';
-  });
-  h+='</tbody></table>'+mkPager(total)+'</div>';
-  main().innerHTML=h;
-}
-
-// ── 테이블 렌더 ──────────────────────────────────────
-var TBL_COLS={'증빙규정':['type','cat','case','content','remark'],'숙박비규정':['purpose','usergrp','pay_type','amount','option','remark'],'예외거리허용구간':['from','to','type','status'],'기타교통수단구간':['from','to','amount']};
-var TBL_HEADS={'증빙규정':['증빙유형','분류','케이스','내용','비고'],'숙박비규정':['출장목적','사용자그룹','지급유형','금액','옵션','비고'],'예외거리허용구간':['출발지','도착지','구간유형','사용여부'],'기타교통수단구간':['출발지','도착지','정액요금']};
-function renderTbl(tname,title){
-  var cols=TBL_COLS[tname]||[], heads=TBL_HEADS[tname]||[];
-  var rows=(DATA.tables[tname]||[]).filter(function(r){
-    if(!KW) return true;
-    var kw=KW.toLowerCase();
-    return cols.some(function(k){return (r[k]||'').toLowerCase().indexOf(kw)>=0;});
-  });
-  rows=sortWithNew(rows,'_id');
-  var total=rows.length, prows=rows.slice((CUR-1)*PAGE,CUR*PAGE);
-
-  var h='<div class="page-hdr"><div class="page-title">'+title+' <small>총 '+total+'건</small></div>';
-  h+='<div class="page-actions"><button class="btn btn-success" onclick="openAdd(\'tables\',\''+tname+'\')">+ 항목 추가</button></div></div>';
-  h+='<div class="toolbar"><div class="search-wrap">';
-  h+='<input class="search-inp" id="kw-inp" placeholder="검색..." value="'+esc(KW)+'" oninput="handleSearch(this)">';
-  h+='<button class="search-clear'+(KW?' show':'')+'" id="kw-clr" onclick="clearSearch()">✕</button>';
-  h+='</div></div>';
-
-  h+='<div class="tbl-wrap"><table class="dtbl"><thead><tr>';
-  heads.forEach(function(hd){h+='<th>'+hd+'</th>';});
-  h+='<th style="width:60px">관리</th></tr></thead><tbody>';
-  if(!prows.length) h+='<tr><td colspan="'+(cols.length+1)+'" class="empty">검색 결과가 없습니다.</td></tr>';
-  prows.forEach(function(r){
-    var isNew=LAST_NEW_ID&&r._id===LAST_NEW_ID;
-    h+='<tr'+(isNew?' class="new-row"':'')+'>';
-    cols.forEach(function(k){
-      var v=esc(r[k]||'');
-      if(k==='status') v='<span class="tag '+(r[k]==='사용'?'t-ok':'t-off')+'">'+esc(r[k]||'')+'</span>';
-      h+='<td style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+v+'</td>';
-    });
-    h+='<td class="td-r"><button class="btn btn-warn btn-sm" onclick="openEdit(\'tables\',\''+r._id+'\',\''+tname+'\')">수정</button></td></tr>';
-  });
-  h+='</tbody></table>'+mkPager(total)+'</div>';
-  main().innerHTML=h;
-}
-
-// ── 관리자 계정 ──────────────────────────────────────
-function renderAccounts(){
-  var h='<div class="page-hdr"><div class="page-title">👤 관리자 계정</div>';
-  h+='<div class="page-actions"><button class="btn btn-success" onclick="addAcc()">+ 계정 추가</button></div></div>';
-  h+='<div class="tbl-wrap"><table class="dtbl"><thead><tr><th>이메일</th><th>추가일</th><th>추가한 계정</th><th style="width:70px">관리</th></tr></thead><tbody>';
-  if(!DATA.accounts.length) h+='<tr><td colspan="4" class="empty">등록된 계정 없음 (모든 구글 계정 접근 가능!)</td></tr>';
-  DATA.accounts.forEach(function(a){
-    h+='<tr><td>'+esc(a.email)+'</td><td style="font-size:11px;color:#94a3c0">'+esc(a.added_at||'')+'</td>';
-    h+='<td style="font-size:11px;color:#94a3c0">'+esc(a.added_by||'')+'</td>';
-    h+='<td><button class="btn btn-danger btn-sm" onclick="delAcc(\''+a._id+'\')">삭제</button></td></tr>';
-  });
-  h+='</tbody></table></div>';
-  h+='<div style="margin-top:12px;background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;padding:12px 16px;font-size:13px;color:#92400e;line-height:1.8">⚠️ 계정 목록이 비어있으면 모든 구글 계정이 접근 가능합니다. 최소 1개 이상 유지하세요!</div>';
-  main().innerHTML=h;
-}
-async function addAcc(){
-  var em=prompt('추가할 구글 이메일:');
-  if(!em||!em.includes('@'))return;
-  await db.collection('admin_accounts').add({email:em.trim().toLowerCase(),added_at:new Date().toISOString().split('T')[0],added_by:CU.email});
-  await loadAll();renderAccounts();
-}
-window.addAcc=addAcc;
-async function delAcc(id){
-  if(!confirm('삭제하시겠습니까?'))return;
-  await db.collection('admin_accounts').doc(id).delete();
-  await loadAll();renderAccounts();
-}
-window.delAcc=delAcc;
-
-// ── 검색 핸들러 (debounce) ──────────────────────────
-function handleSearch(inp){
-  var v=inp.value;
-  var clr=document.getElementById('kw-clr');
-  if(clr) clr.className='search-clear'+(v?' show':'');
-  debouncedSearch(v);
-}
-window.handleSearch=handleSearch;
-
-function clearSearch(){
-  KW='';CUR=1;
-  var inp=document.getElementById('kw-inp');if(inp)inp.value='';
-  var clr=document.getElementById('kw-clr');if(clr)clr.className='search-clear';
-  render();
-}
-window.clearSearch=clearSearch;
-
-function onF(v){FILTER=v;CUR=1;render();}
-window.onF=onF;
-
-// ── 페이지네이션 ──────────────────────────────────────
 function mkPager(total){
   var tp=Math.ceil(total/PAGE);if(tp<=1)return '';
   var h='<div class="pager"><span>'+((CUR-1)*PAGE+1)+'-'+Math.min(CUR*PAGE,total)+' / '+total+'건</span><div class="pager-btns">';
-  h+='<button class="pb" onclick="gp('+(CUR-1)+')" '+(CUR<=1?'disabled':'')+'>이전</button>';
+  h+='<button class="pb" data-p="'+(CUR-1)+'" '+(CUR<=1?'disabled':'')+'>이전</button>';
   var s=Math.max(1,CUR-2),e=Math.min(tp,s+4);
-  for(var i=s;i<=e;i++) h+='<button class="pb'+(i===CUR?' on':'')+'" onclick="gp('+i+')">'+i+'</button>';
-  h+='<button class="pb" onclick="gp('+(CUR+1)+')" '+(CUR>=tp?'disabled':'')+'>다음</button>';
+  for(var i=s;i<=e;i++)h+='<button class="pb'+(i===CUR?' on':'')+'" data-p="'+i+'">'+i+'</button>';
+  h+='<button class="pb" data-p="'+(CUR+1)+'" '+(CUR>=tp?'disabled':'')+'>다음</button>';
   return h+'</div></div>';
 }
-function gp(p){CUR=p;render();window.scrollTo(0,0);}
-window.gp=gp;
 
-// ── 편집 모달 스키마 ──────────────────────────────────
+/* ── Q&A 렌더 ── */
+function renderQA(m,src){
+  var rows=DATA.qa.filter(function(r){return !src||r.s===src;});
+  rows=applyKF(rows,['q','a','s','c']);rows=sortNew(rows);
+  var total=rows.length,prows=rows.slice((CUR-1)*PAGE,CUR*PAGE);
+  var defSrc=src||'트리플러스';
+  var h='<div class="page-hdr"><div class="page-title">'+(src?getQTag(src)+' Q&A':'💬 Q&A 전체')+' <small>총 '+total+'건</small></div>';
+  h+='<div class="page-actions"><button class="btn btn-purple" data-xl="'+defSrc+'">📊 엑셀 일괄 등록</button><button class="btn btn-success" data-add="qa|'+defSrc+'">+ Q&A 추가</button></div></div>';
+  h+='<div class="toolbar">'+mkSearch('질문, 답변, 소스 검색...');
+  if(!src){h+='<div class="fchips"><span class="fchip'+(FILTER==='all'?' on':'')+'" data-f="all">전체</span><span class="fchip'+(FILTER==='트리플러스'?' on':'')+'" data-f="트리플러스">트리플러스</span><span class="fchip'+(FILTER==='오큐파이'?' on':'')+'" data-f="오큐파이">오큐파이</span></div>';}
+  h+='</div>';
+  h+='<div class="tbl-wrap"><table class="dtbl"><thead><tr><th style="width:85px">소스</th><th style="width:85px">카테고리</th><th>질문</th><th>답변</th><th style="width:50px">AI제외</th><th style="width:60px">관리</th></tr></thead><tbody>';
+  if(!prows.length)h+='<tr><td colspan="6" class="empty">검색 결과 없음</td></tr>';
+  prows.forEach(function(r){
+    var isN=LAST_NEW_ID&&r._id===LAST_NEW_ID;
+    h+='<tr'+(isN?' class="new-row"':'')+'><td>'+getQTag(r.s)+'</td><td style="font-size:11px;color:#94a3c0">'+esc(r.c||'')+'</td><td class="clip">'+esc(r.q||'')+'</td><td class="clip-lg">'+esc(r.a||'')+'</td><td>'+(r.xs?'<span class="tag t-xs">제외</span>':'')+'</td>';
+    h+='<td class="td-r"><button class="btn btn-warn btn-sm" data-edit="qa|'+r._id+'">수정</button></td></tr>';
+  });
+  h+='</tbody></table>'+mkPager(total)+'</div>';
+  m.innerHTML=h;bindEvents(m);
+}
+
+/* ── 매뉴얼 렌더 ── */
+var ETCS=['출장정책','운영정책','남양연구소','남양연구소-시내교통비','해외출장을위한이동'];
+function renderMan(m,sources,title){
+  var rows=DATA.manual.filter(function(r){return !sources||sources.indexOf(r.s)>=0;});
+  rows=applyKF(rows,['q','a','s','c','it']);rows=sortNew(rows);
+  var total=rows.length,prows=rows.slice((CUR-1)*PAGE,CUR*PAGE);
+  var defSrc=sources?sources[0]:'출장정책';
+  var h='<div class="page-hdr"><div class="page-title">'+title+' <small>총 '+total+'건</small></div>';
+  h+='<div class="page-actions"><button class="btn btn-success" data-add="manual|'+defSrc+'">+ 항목 추가</button></div></div>';
+  h+='<div class="toolbar">'+mkSearch('소스, 카테고리, 질문, 답변 검색...')+'</div>';
+  h+=manTblHTML(prows,total);m.innerHTML=h;bindEvents(m);
+}
+function renderManEtc(m){
+  var rows=DATA.manual.filter(function(r){return ETCS.indexOf(r.s)<0;});
+  rows=applyKF(rows,['q','a','s','c','it']);rows=sortNew(rows);
+  var total=rows.length,prows=rows.slice((CUR-1)*PAGE,CUR*PAGE);
+  var h='<div class="page-hdr"><div class="page-title">📋 기타 매뉴얼 <small>총 '+total+'건</small></div>';
+  h+='<div class="page-actions"><button class="btn btn-success" data-add="manual|증빙규정">+ 항목 추가</button></div></div>';
+  h+='<div class="toolbar">'+mkSearch('소스, 카테고리, 질문 검색...')+'</div>';
+  h+=manTblHTML(prows,total);m.innerHTML=h;bindEvents(m);
+}
+function manTblHTML(prows,total){
+  var h='<div class="tbl-wrap"><table class="dtbl"><thead><tr><th style="width:110px">소스</th><th style="width:70px">카테고리</th><th style="width:110px">항목명</th><th>질문</th><th>답변</th><th style="width:50px">AI제외</th><th style="width:60px">관리</th></tr></thead><tbody>';
+  if(!prows.length)h+='<tr><td colspan="7" class="empty">검색 결과 없음</td></tr>';
+  prows.forEach(function(r){
+    var isN=LAST_NEW_ID&&r._id===LAST_NEW_ID;
+    h+='<tr'+(isN?' class="new-row"':'')+'><td>'+getMTag(r.s)+'</td><td style="font-size:11px;color:#94a3c0">'+esc(r.c||'')+'</td><td class="clip" style="font-size:11px;color:#4b5680">'+esc(r.it||'')+'</td><td class="clip">'+esc(r.q||'')+'</td><td class="clip-lg">'+esc(r.a||'')+'</td><td>'+(r.xs?'<span class="tag t-xs">제외</span>':'')+'</td>';
+    h+='<td class="td-r"><button class="btn btn-warn btn-sm" data-edit="manual|'+r._id+'">수정</button></td></tr>';
+  });
+  return h+'</tbody></table>'+mkPager(total)+'</div>';
+}
+
+/* ── 테이블 렌더 ── */
+var TBL_C={'증빙규정':['type','cat','case','content','remark'],'숙박비규정':['purpose','usergrp','pay_type','amount','option','remark'],'예외거리허용구간':['from','to','type','status'],'기타교통수단구간':['from','to','amount']};
+var TBL_H={'증빙규정':['증빙유형','분류','케이스','내용','비고'],'숙박비규정':['출장목적','사용자그룹','지급유형','금액','옵션','비고'],'예외거리허용구간':['출발지','도착지','구간유형','사용여부'],'기타교통수단구간':['출발지','도착지','정액요금']};
+function renderTbl(m,tname,title){
+  var cols=TBL_C[tname]||[],heads=TBL_H[tname]||[];
+  var rows=(DATA.tables[tname]||[]).filter(function(r){if(!KW)return true;var kw=KW.toLowerCase();return cols.some(function(k){return (r[k]||'').toLowerCase().indexOf(kw)>=0;});});
+  rows=sortNew(rows);
+  var total=rows.length,prows=rows.slice((CUR-1)*PAGE,CUR*PAGE);
+  var h='<div class="page-hdr"><div class="page-title">'+title+' <small>총 '+total+'건</small></div>';
+  h+='<div class="page-actions"><button class="btn btn-success" data-add="tables|'+tname+'">+ 항목 추가</button></div></div>';
+  h+='<div class="toolbar">'+mkSearch('검색...')+'</div>';
+  h+='<div class="tbl-wrap"><table class="dtbl"><thead><tr>';
+  heads.forEach(function(hd){h+='<th>'+hd+'</th>';});
+  h+='<th style="width:60px">관리</th></tr></thead><tbody>';
+  if(!prows.length)h+='<tr><td colspan="'+(cols.length+1)+'" class="empty">검색 결과 없음</td></tr>';
+  prows.forEach(function(r){
+    var isN=LAST_NEW_ID&&r._id===LAST_NEW_ID;
+    h+='<tr'+(isN?' class="new-row"':'')+'>';
+    cols.forEach(function(k){var v=esc(r[k]||'');if(k==='status')v='<span class="tag '+(r[k]==='사용'?'t-ok':'t-off')+'">'+esc(r[k]||'')+'</span>';h+='<td style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+v+'</td>';});
+    h+='<td class="td-r"><button class="btn btn-warn btn-sm" data-edit="tables|'+r._id+'|'+tname+'">수정</button></td></tr>';
+  });
+  h+='</tbody></table>'+mkPager(total)+'</div>';
+  m.innerHTML=h;bindEvents(m);
+}
+
+/* ── 이벤트 바인딩 (data-* 속성 기반, onclick 없음) ── */
+function bindEvents(m){
+  /* 검색 */
+  var inp=m.querySelector('#kw-inp');
+  if(inp){
+    inp.addEventListener('input',function(){
+      var clr=m.querySelector('#kw-clr');
+      if(clr)clr.className='search-clear'+(this.value?' show':'');
+      debouncedSearch(this.value);
+    });
+  }
+  /* 검색 클리어 */
+  var clr=m.querySelector('#kw-clr');
+  if(clr){clr.addEventListener('click',function(){KW='';CUR=1;var i=m.querySelector('#kw-inp');if(i)i.value='';render();});}
+  /* 필터 칩 */
+  m.querySelectorAll('[data-f]').forEach(function(el){el.addEventListener('click',function(){FILTER=this.dataset.f;CUR=1;render();});});
+  /* 페이지 버튼 */
+  m.querySelectorAll('[data-p]').forEach(function(el){el.addEventListener('click',function(){if(this.disabled)return;CUR=parseInt(this.dataset.p);render();window.scrollTo(0,0);});});
+  /* 추가 버튼 */
+  m.querySelectorAll('[data-add]').forEach(function(el){el.addEventListener('click',function(){var p=this.dataset.add.split('|');openAdd(p[0],p[1]);});});
+  /* 수정 버튼 */
+  m.querySelectorAll('[data-edit]').forEach(function(el){el.addEventListener('click',function(){var p=this.dataset.edit.split('|');openEdit(p[0],p[1],p[2]);});});
+  /* 엑셀 버튼 */
+  m.querySelectorAll('[data-xl]').forEach(function(el){el.addEventListener('click',function(){openXlModal(this.dataset.xl);});});
+}
+
+/* ── 관리자 계정 ── */
+function renderAccounts(m){
+  var h='<div class="page-hdr"><div class="page-title">👤 관리자 계정</div>';
+  h+='<div class="page-actions"><button class="btn btn-success" id="add-acc-btn">+ 계정 추가</button></div></div>';
+  h+='<div class="tbl-wrap"><table class="dtbl"><thead><tr><th>이메일</th><th>추가일</th><th>추가한 계정</th><th style="width:70px">관리</th></tr></thead><tbody>';
+  if(!DATA.accounts.length)h+='<tr><td colspan="4" class="empty">등록된 계정 없음 (모든 구글 계정 접근 가능!)</td></tr>';
+  DATA.accounts.forEach(function(a){
+    h+='<tr><td>'+esc(a.email)+'</td><td style="font-size:11px;color:#94a3c0">'+esc(a.added_at||'')+'</td><td style="font-size:11px;color:#94a3c0">'+esc(a.added_by||'')+'</td>';
+    h+='<td><button class="btn btn-danger btn-sm" data-delacc="'+a._id+'">삭제</button></td></tr>';
+  });
+  h+='</tbody></table></div>';
+  h+='<div style="margin-top:12px;background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;padding:12px 16px;font-size:13px;color:#92400e;line-height:1.8">⚠️ 계정 목록이 비어있으면 모든 구글 계정이 접근 가능합니다. 최소 1개 이상 유지하세요!</div>';
+  m.innerHTML=h;
+  var btn=m.querySelector('#add-acc-btn');
+  if(btn)btn.addEventListener('click',function(){addAcc();});
+  m.querySelectorAll('[data-delacc]').forEach(function(el){el.addEventListener('click',function(){delAcc(this.dataset.delacc);});});
+}
+async function addAcc(){
+  var em=prompt('추가할 구글 이메일:');if(!em||!em.includes('@'))return;
+  await db.collection('admin_accounts').add({email:em.trim().toLowerCase(),added_at:new Date().toISOString().split('T')[0],added_by:CU.email});
+  await loadAll();renderAccounts(document.getElementById('main'));
+}
+async function delAcc(id){
+  if(!confirm('삭제하시겠습니까?'))return;
+  await db.collection('admin_accounts').doc(id).delete();
+  await loadAll();renderAccounts(document.getElementById('main'));
+}
+
+/* ── 편집 모달 ── */
 var QA_SCH=[
   {k:'s',l:'소스',t:'sel',opts:['트리플러스','오큐파이']},
   {k:'c',l:'카테고리',t:'sel',opts:['','정산 문의','서비스 이용문의','버그 및 오류 신고','기타']},
-  {k:'q',l:'질문',tall:true},
-  {k:'a',l:'답변',tall:true},
-  {k:'xs',l:'AI검색 제외 (0=포함 / 1=제외)',t:'sel',opts:['0','1']}
+  {k:'q',l:'질문',tall:true},{k:'a',l:'답변',tall:true},
+  {k:'xs',l:'AI검색 제외 (0=포함/1=제외)',t:'sel',opts:['0','1']}
 ];
 var MAN_SCH=[
   {k:'s',l:'소스',t:'sel',opts:['출장정책','운영정책','남양연구소','남양연구소-시내교통비','해외출장을위한이동','증빙규정','숙박비규정','예외거리허용구간','기타교통수단구간']},
-  {k:'c',l:'카테고리',ph:'예: 숙박, 열차, 항공'},
-  {k:'it',l:'항목명',ph:'예: 교통비·유류비·통행료 지급 기준'},
-  {k:'q',l:'질문/제목',tall:true},
-  {k:'a',l:'답변/내용',tall:true},
+  {k:'c',l:'카테고리',ph:'예: 숙박, 열차, 항공'},{k:'it',l:'항목명',ph:'예: 교통비·유류비 지급 기준'},
+  {k:'q',l:'질문/제목',tall:true},{k:'a',l:'답변/내용',tall:true},
   {k:'r',l:'비고 (선택)',req:false},
-  {k:'xs',l:'AI검색 제외 (0=포함 / 1=제외)',t:'sel',opts:['0','1']}
+  {k:'xs',l:'AI검색 제외 (0=포함/1=제외)',t:'sel',opts:['0','1']}
 ];
-var TBL_SCH={
-  '증빙규정':[{k:'type',l:'증빙유형'},{k:'cat',l:'분류'},{k:'case',l:'케이스'},{k:'content',l:'내용',tall:true},{k:'remark',l:'비고',req:false}],
-  '숙박비규정':[{k:'purpose',l:'출장목적'},{k:'gubun',l:'구분'},{k:'usergrp',l:'사용자그룹'},{k:'dest',l:'행선지'},{k:'pay_type',l:'지급유형'},{k:'amount',l:'금액'},{k:'option',l:'옵션'},{k:'remark',l:'비고',req:false}],
-  '예외거리허용구간':[{k:'from',l:'출발지'},{k:'to',l:'도착지'},{k:'type',l:'구간유형',ph:'왕복/편도'},{k:'status',l:'사용여부',ph:'사용/미사용'}],
-  '기타교통수단구간':[{k:'from',l:'출발지'},{k:'to',l:'도착지'},{k:'amount',l:'정액요금',ph:'예: 4,600원'}]
-};
-
+var TBL_SCH={'증빙규정':[{k:'type',l:'증빙유형'},{k:'cat',l:'분류'},{k:'case',l:'케이스'},{k:'content',l:'내용',tall:true},{k:'remark',l:'비고',req:false}],'숙박비규정':[{k:'purpose',l:'출장목적'},{k:'gubun',l:'구분'},{k:'usergrp',l:'사용자그룹'},{k:'dest',l:'행선지'},{k:'pay_type',l:'지급유형'},{k:'amount',l:'금액'},{k:'option',l:'옵션'},{k:'remark',l:'비고',req:false}],'예외거리허용구간':[{k:'from',l:'출발지'},{k:'to',l:'도착지'},{k:'type',l:'구간유형',ph:'왕복/편도'},{k:'status',l:'사용여부',ph:'사용/미사용'}],'기타교통수단구간':[{k:'from',l:'출발지'},{k:'to',l:'도착지'},{k:'amount',l:'정액요금',ph:'예: 4,600원'}]};
+function getSch(){return EDIT_COL==='qa'?QA_SCH:EDIT_COL==='manual'?MAN_SCH:(TBL_SCH[EDIT_TBL]||[]);}
+function getVals(sch){var d={};sch.forEach(function(f){var e=document.getElementById('f-'+f.k);if(e)d[f.k]=e.value.trim();});return d;}
 function mkFields(sch,data){
   return sch.map(function(f){
     var v=data?(data[f.k]!==undefined?data[f.k]:''):'';
     var req=f.req!==false;
     var h='<div class="field"><label>'+f.l+(req?' <span class="req">*</span>':'')+'</label>';
-    if(f.t==='sel'){
-      h+='<select id="f-'+f.k+'">'+(f.opts||[]).map(function(o){return '<option value="'+o+'"'+(String(v)===String(o)?' selected':'')+'>'+（o||'(없음)')+'</option>';}).join('')+'</select>';
-    } else if(f.tall){
-      h+='<textarea id="f-'+f.k+'" class="tall" placeholder="'+(f.ph||'')+'">'+esc(String(v))+'</textarea>';
-    } else {
-      h+='<input id="f-'+f.k+'" type="text" value="'+esc(String(v))+'" placeholder="'+(f.ph||'')+'">';
-    }
+    if(f.t==='sel'){h+='<select id="f-'+f.k+'">'+(f.opts||[]).map(function(o){return '<option value="'+o+'"'+(String(v)===String(o)?' selected':'')+'>'+（o||'(없음)')+'</option>';}).join('')+'</select>';}
+    else if(f.tall){h+='<textarea id="f-'+f.k+'" class="tall" placeholder="'+(f.ph||'')+'">'+esc(String(v))+'</textarea>';}
+    else{h+='<input id="f-'+f.k+'" type="text" value="'+esc(String(v))+'" placeholder="'+(f.ph||'')+'">';}
     return h+'</div>';
   }).join('');
 }
-function getSch(){return EDIT_COL==='qa'?QA_SCH:EDIT_COL==='manual'?MAN_SCH:(TBL_SCH[EDIT_TBL]||[]);}
-function getVals(sch){var d={};sch.forEach(function(f){var e=document.getElementById('f-'+f.k);if(e)d[f.k]=e.value.trim();});return d;}
-
 function openAdd(col,src){
   EDIT_ID=null;EDIT_COL=col;EDIT_TBL=src;
   var def=col==='qa'?{s:src,xs:'0'}:col==='manual'?{s:src,xs:'0'}:{};
@@ -665,59 +548,36 @@ function openAdd(col,src){
   document.getElementById('modal-msg').textContent='';
   document.getElementById('modal').classList.add('open');
 }
-window.openAdd=openAdd;
-
 function openEdit(col,id,tbl){
   EDIT_ID=id;EDIT_COL=col;EDIT_TBL=tbl||null;
-  var data=col==='qa'?DATA.qa.find(function(r){return r._id===id;}):
-            col==='manual'?DATA.manual.find(function(r){return r._id===id;}):
-            (DATA.tables[tbl]||[]).find(function(r){return r._id===id;});
+  var data=col==='qa'?DATA.qa.find(function(r){return r._id===id;}):col==='manual'?DATA.manual.find(function(r){return r._id===id;}):(DATA.tables[tbl]||[]).find(function(r){return r._id===id;});
   document.getElementById('modal-title').textContent='✏️ 항목 수정';
   document.getElementById('modal-body').innerHTML=mkFields(getSch(),data);
   document.getElementById('del-btn').style.display='inline-block';
   document.getElementById('modal-msg').textContent='';
   document.getElementById('modal').classList.add('open');
 }
-window.openEdit=openEdit;
-
 function closeModal(){document.getElementById('modal').classList.remove('open');}
-window.closeModal=closeModal;
-
 async function doSave(){
-  var msg=document.getElementById('modal-msg');
-  msg.textContent='저장 중...';msg.className='modal-msg';
+  var msg=document.getElementById('modal-msg');msg.textContent='저장 중...';msg.className='modal-msg';
   try{
-    var sch=getSch(), data=getVals(sch);
-    if(EDIT_COL==='qa'||EDIT_COL==='manual') data.xs=parseInt(data.xs)||0;
-    if(EDIT_COL==='tables') data.tableName=EDIT_TBL;
-    var savedId;
-    if(EDIT_ID){
-      await db.collection(EDIT_COL).doc(EDIT_ID).update(data);
-      savedId=EDIT_ID;
-    } else {
-      var nid=EDIT_COL+'_'+Date.now();data.id=nid;
-      await db.collection(EDIT_COL).doc(nid).set(data);
-      savedId=nid;
-    }
-    LAST_NEW_ID=savedId; // 맨 위로 표시용
-    CUR=1; // 첫 페이지로
-    msg.textContent='✅ 저장 완료!';
-    setTimeout(function(){closeModal();loadAll().then(function(){render();});},500);
+    var sch=getSch(),data=getVals(sch);
+    if(EDIT_COL==='qa'||EDIT_COL==='manual')data.xs=parseInt(data.xs)||0;
+    if(EDIT_COL==='tables')data.tableName=EDIT_TBL;
+    var sid;
+    if(EDIT_ID){await db.collection(EDIT_COL).doc(EDIT_ID).update(data);sid=EDIT_ID;}
+    else{var nid=EDIT_COL+'_'+Date.now();data.id=nid;await db.collection(EDIT_COL).doc(nid).set(data);sid=nid;}
+    LAST_NEW_ID=sid;CUR=1;msg.textContent='✅ 저장 완료!';
+    setTimeout(function(){closeModal();loadAll().then(render);},500);
   }catch(e){msg.textContent='❌ '+e.message;msg.className='modal-msg err';}
 }
-window.doSave=doSave;
-
 async function doDelete(){
   if(!EDIT_ID||!confirm('삭제하시겠습니까? 복구 불가합니다.'))return;
   await db.collection(EDIT_COL).doc(EDIT_ID).delete();
-  LAST_NEW_ID=null;
-  closeModal();await loadAll();render();
+  LAST_NEW_ID=null;closeModal();await loadAll();render();
 }
-window.doDelete=doDelete;
 
-// ── 엑셀 일괄 등록 ──────────────────────────────────
-var XL_SRC='트리플러스';
-
+/* ── 엑셀 일괄 등록 ── */
 function openXlModal(src){
   XL_SRC=src||'트리플러스';XL_ROWS=[];
   document.getElementById('xl-stat').style.display='none';
@@ -729,28 +589,20 @@ function openXlModal(src){
   document.getElementById('xl-file').value='';
   document.getElementById('xl-modal').classList.add('open');
 }
-window.openXlModal=openXlModal;
-
 function closeXlModal(){document.getElementById('xl-modal').classList.remove('open');}
-window.closeXlModal=closeXlModal;
-
-// 예시 엑셀 다운로드
 function downloadSample(){
   var wb=XLSX.utils.book_new();
   var data=[
-    ['소스(s)','카테고리(c)','질문(q)','답변(a)','AI검색제외(xs)'],
+    ['소스(s)','카테고리(c)','질문(q)','답변(a)','AI검색제외(xs 0또는1)'],
     ['트리플러스','정산 문의','출장정산서는 어떻게 제출하나요?','트리플러스 시스템에서 출장 → 정산 메뉴를 통해 제출합니다.','0'],
     ['오큐파이','서비스 이용문의','출장 예약 취소는 어떻게 하나요?','예약 상세 화면에서 취소 버튼을 클릭하시면 됩니다.','0'],
     ['트리플러스','버그 및 오류 신고','로그인이 안 됩니다.','브라우저 캐시 삭제 후 재시도해 주세요. 계속 문제 시 IT 헬프데스크에 문의하세요.','0'],
   ];
   var ws=XLSX.utils.aoa_to_sheet(data);
-  ws['!cols']=[{wch:14},{wch:16},{wch:40},{wch:60},{wch:12}];
+  ws['!cols']=[{wch:14},{wch:16},{wch:40},{wch:60},{wch:14}];
   XLSX.utils.book_append_sheet(wb,ws,'Q&A 등록양식');
   XLSX.writeFile(wb,'QA_일괄등록_양식.xlsx');
 }
-window.downloadSample=downloadSample;
-
-// 엑셀 파일 파싱
 function handleXlFile(file){
   if(!file)return;
   var reader=new FileReader();
@@ -760,125 +612,69 @@ function handleXlFile(file){
       var ws=wb.Sheets[wb.SheetNames[0]];
       var raw=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
       if(raw.length<2){showXlMsg('데이터가 없습니다.',true);return;}
-      // 헤더 행 제거, 빈 행 제거
-      var rows=raw.slice(1).filter(function(r){return r[2]||r[3];}).map(function(r){
-        return {
-          s: String(r[0]||XL_SRC).trim()||XL_SRC,
-          c: String(r[1]||'').trim(),
-          q: String(r[2]||'').trim(),
-          a: String(r[3]||'').trim(),
-          xs: parseInt(r[4])||0
-        };
-      }).filter(function(r){return r.q&&r.a;});
+      var rows=raw.slice(1).filter(function(r){return r[2]||r[3];}).map(function(r){return {s:String(r[0]||XL_SRC).trim()||XL_SRC,c:String(r[1]||'').trim(),q:String(r[2]||'').trim(),a:String(r[3]||'').trim(),xs:parseInt(r[4])||0};}).filter(function(r){return r.q&&r.a;});
       XL_ROWS=rows;
-      // 미리보기
-      var statEl=document.getElementById('xl-stat');
-      statEl.innerHTML='총 <strong>'+rows.length+'건</strong> 인식됨 (아래에서 미리보기 확인)';
-      statEl.style.display='block';
+      var se=document.getElementById('xl-stat');se.innerHTML='총 <strong>'+rows.length+'건</strong> 인식됨';se.style.display='block';
       var prev='<table><tr><th>소스</th><th>카테고리</th><th>질문</th><th>답변</th><th>AI제외</th></tr>';
-      rows.slice(0,10).forEach(function(r){
-        prev+='<tr><td>'+esc(r.s)+'</td><td>'+esc(r.c)+'</td><td>'+esc(r.q.slice(0,40))+'</td><td>'+esc(r.a.slice(0,50))+'</td><td>'+r.xs+'</td></tr>';
-      });
-      if(rows.length>10) prev+='<tr><td colspan="5" style="color:#94a3c0;text-align:center">... 외 '+(rows.length-10)+'건</td></tr>';
+      rows.slice(0,10).forEach(function(r){prev+='<tr><td>'+esc(r.s)+'</td><td>'+esc(r.c)+'</td><td>'+esc(r.q.slice(0,40))+'</td><td>'+esc(r.a.slice(0,50))+'</td><td>'+r.xs+'</td></tr>';});
+      if(rows.length>10)prev+='<tr><td colspan="5" style="color:#94a3c0;text-align:center">... 외 '+(rows.length-10)+'건</td></tr>';
       prev+='</table>';
-      var prevEl=document.getElementById('xl-preview');
-      prevEl.innerHTML=prev;prevEl.style.display='block';
+      var pe=document.getElementById('xl-preview');pe.innerHTML=prev;pe.style.display='block';
       document.getElementById('xl-upload-btn').style.display='inline-block';
-    }catch(err){showXlMsg('파일 파싱 오류: '+err.message,true);}
+    }catch(err){showXlMsg('파싱 오류: '+err.message,true);}
   };
   reader.readAsArrayBuffer(file);
 }
-window.handleXlFile=handleXlFile;
-
-// 일괄 업로드
 async function doXlUpload(){
   if(!XL_ROWS.length){showXlMsg('업로드할 데이터가 없습니다.',true);return;}
-  var btn=document.getElementById('xl-upload-btn');
-  btn.disabled=true;btn.textContent='업로드 중...';
+  var btn=document.getElementById('xl-upload-btn');btn.disabled=true;btn.textContent='업로드 중...';
   document.getElementById('xl-prog').style.display='block';
   var bar=document.getElementById('xl-prog-bar');
-  var total=XL_ROWS.length, done=0, lastId='';
-  var BATCH=400;
+  var total=XL_ROWS.length,done=0,lastId='';
   try{
-    for(var i=0;i<XL_ROWS.length;i+=BATCH){
-      var chunk=XL_ROWS.slice(i,i+BATCH);
+    for(var i=0;i<XL_ROWS.length;i+=400){
+      var chunk=XL_ROWS.slice(i,i+400);
       var batch=db.batch();
-      chunk.forEach(function(row){
-        var nid='qa_xl_'+Date.now()+'_'+Math.random().toString(36).slice(2,7);
-        row.id=nid;lastId=nid;
-        batch.set(db.collection('qa').doc(nid),row);
-      });
+      chunk.forEach(function(row){var nid='qa_xl_'+Date.now()+'_'+Math.random().toString(36).slice(2,7);row.id=nid;lastId=nid;batch.set(db.collection('qa').doc(nid),row);});
       await batch.commit();
-      done+=chunk.length;
-      bar.style.width=Math.round(done/total*100)+'%';
+      done+=chunk.length;bar.style.width=Math.round(done/total*100)+'%';
     }
     LAST_NEW_ID=lastId;CUR=1;
     showXlMsg('✅ '+total+'건 등록 완료!');
     btn.textContent='✅ 완료';
     await loadAll();
     setTimeout(function(){closeXlModal();render();},1000);
-  }catch(e){
-    showXlMsg('❌ 오류: '+e.message,true);
-    btn.disabled=false;btn.textContent='🚀 일괄 등록하기';
-  }
+  }catch(e){showXlMsg('❌ 오류: '+e.message,true);btn.disabled=false;btn.textContent='🚀 일괄 등록하기';}
 }
-window.doXlUpload=doXlUpload;
+function showXlMsg(msg,isErr){var el=document.getElementById('xl-msg');el.textContent=msg;el.className='modal-msg'+(isErr?' err':'');}
 
-function showXlMsg(msg,isErr){
-  var el=document.getElementById('xl-msg');
-  el.textContent=msg;el.className='modal-msg'+(isErr?' err':'');
+/* ── 도움말 ── */
+function renderHelpSearch(m){
+  m.innerHTML='<div class="doc"><h2>📘 출장관리 AI검색 사용방법</h2><p>현대자동차 트리플러스 출장 관련 Q&amp;A, 정책, 규정을 <strong>자연어</strong>로 검색하는 도구입니다.</p><div class="gbox">🌐 접속 주소<br><code>https://bizplaytravel1.github.io/triplus-kb/출장관리_AI검색_매뉴얼_Firebase.html</code></div><h2>🔍 사용법</h2><div class="step"><div class="sr"><span class="sn">1</span><span>검색창에 자연어 문장 입력</span></div><div class="sr"><span class="sn">2</span><span>AI 검색 버튼 클릭 또는 Enter</span></div><div class="sr"><span class="sn">3</span><span>AI 종합 답변 확인 → 카드 클릭으로 상세 내용 확인</span></div></div><h2>📑 탭별 기능</h2><table><tr><th>탭</th><th>내용</th></tr><tr><td>🔍 AI 검색</td><td>자연어 통합 검색 + AI 답변</td></tr><tr><td>📋 증빙규정</td><td>증빙 처리 규정</td></tr><tr><td>🏠 숙박비규정</td><td>숙박비 지급 기준</td></tr><tr><td>📍 예외거리구간</td><td>50km 미만 허용 구간</td></tr><tr><td>🚌 기타교통수단</td><td>정액요금 구간</td></tr><tr><td>✈️ 해외출장</td><td>해외 출장 규정</td></tr><tr><td>🚗 남양시내교통비</td><td>남양연구소 전용</td></tr></table></div>';
 }
-
-// ── 도움말 ──────────────────────────────────────────
-function renderHelpSearch(){
-  main().innerHTML='<div class="doc">'+
-  '<h2>📘 출장관리 AI검색 사용방법</h2>'+
-  '<p>출장관리 AI검색은 현대자동차 트리플러스 출장 관련 Q&amp;A, 정책, 규정을 <strong>자연어로 검색</strong>할 수 있는 도구입니다.</p>'+
-  '<div class="gbox">🌐 접속 주소<br><code>https://bizplaytravel1.github.io/triplus-kb/출장관리_AI검색_매뉴얼_Firebase.html</code></div>'+
-  '<h2>🔍 AI 검색 사용법</h2>'+
-  '<div class="step"><div class="sr"><span class="sn">1</span><span>검색창에 궁금한 내용을 <strong>자연어 문장</strong>으로 입력</span></div>'+
-  '<div class="sr"><span class="sn">2</span><span><strong>AI 검색</strong> 버튼 클릭 또는 Enter</span></div>'+
-  '<div class="sr"><span class="sn">3</span><span>상단 <strong>AI 종합 답변</strong> 확인 후 아래 카드에서 상세 내용 확인</span></div></div>'+
-  '<h2>📑 탭별 기능</h2>'+
-  '<table><tr><th>탭</th><th>내용</th></tr>'+
-  '<tr><td>🔍 AI 검색</td><td>자연어 통합 검색 + AI 답변 생성</td></tr>'+
-  '<tr><td>📋 증빙규정</td><td>기타증빙·마이데이터 유형별 증빙 처리 규정</td></tr>'+
-  '<tr><td>🏠 숙박비규정</td><td>사용자그룹별 숙박비 지급 기준</td></tr>'+
-  '<tr><td>📍 예외거리구간</td><td>50km 미만 출장정산서 상신 가능 구간</td></tr>'+
-  '<tr><td>🚌 기타교통수단</td><td>정액요금 청구 구간 목록</td></tr>'+
-  '<tr><td>✈️ 해외출장</td><td>해외 출장 교통비·일비·숙박 규정</td></tr>'+
-  '<tr><td>🚗 남양시내교통비</td><td>남양연구소 근무자 시내교통비 안내</td></tr>'+
-  '<tr><td>🚌 시내교통비 신청</td><td>시내교통비 신청 상세 매뉴얼</td></tr></table>'+
-  '<h2>💡 검색 팁</h2>'+
-  '<ul><li>짧은 키워드보다 <strong>문장으로 검색</strong>하면 더 정확해요</li>'+
-  '<li>카드를 클릭하면 상세 답변이 펼쳐집니다</li>'+
-  '<li>📋 복사 버튼으로 답변을 클립보드에 복사할 수 있어요</li></ul></div>';
+function renderHelpAdmin(m){
+  m.innerHTML='<div class="doc"><h2>🔑 출장관리 AI검색 관리자 사용방법</h2><div class="wbox">⚠️ 반드시 <strong>GitHub Pages 주소</strong>에서 열어야 합니다.</div><div class="gbox">🌐 관리자 주소<br><code>https://bizplaytravel1.github.io/triplus-kb/출장관리_AI검색_관리자.html</code></div><h2>✏️ 수정 / ➕ 추가 / 🗑️ 삭제</h2><div class="step"><div class="sr"><span class="sn">1</span><span>사이드바에서 카테고리 클릭</span></div><div class="sr"><span class="sn">2</span><span>수정 버튼 → 내용 변경 → 💾 저장 (추가/수정 항목은 맨 위 초록 배경으로 표시)</span></div><div class="sr"><span class="sn">3</span><span>삭제: 수정 모달 하단 🗑️ 삭제 버튼</span></div></div><h2>📊 엑셀 일괄 등록</h2><div class="step"><div class="sr"><span class="sn">1</span><span>Q&amp;A 탭 → 📊 엑셀 일괄 등록 클릭</span></div><div class="sr"><span class="sn">2</span><span>📥 예시 엑셀 다운로드 → 양식에 입력 → 저장</span></div><div class="sr"><span class="sn">3</span><span>파일 업로드 → 미리보기 확인 → 🚀 일괄 등록하기</span></div></div><h2>🔍 AI검색 제외 (xs)</h2><table><tr><th>값</th><th>의미</th></tr><tr><td><code>0</code></td><td>🟢 AI 검색 포함 (기본)</td></tr><tr><td><code>1</code></td><td>🔴 AI 검색 제외 (탭에서는 보임)</td></tr></table></div>';
 }
 
-function renderHelpAdmin(){
-  main().innerHTML='<div class="doc">'+
-  '<h2>🔑 출장관리 AI검색 관리자 사용방법</h2>'+
-  '<div class="wbox">⚠️ 반드시 <strong>GitHub Pages 주소</strong>에서 열어야 합니다. 로컬 파일(file://)에서는 로그인 불가합니다.</div>'+
-  '<div class="gbox">🌐 관리자 주소<br><code>https://bizplaytravel1.github.io/triplus-kb/출장관리_AI검색_관리자.html</code></div>'+
-  '<h2>✏️ 수정 / ➕ 추가 / 🗑️ 삭제</h2>'+
-  '<div class="step">'+
-  '<div class="sr"><span class="sn">1</span><span>사이드바에서 카테고리 클릭</span></div>'+
-  '<div class="sr"><span class="sn">2</span><span><strong>수정</strong> 버튼 클릭 → 내용 변경 → <strong>💾 저장</strong> (추가/수정 항목은 맨 위에 초록 배경으로 표시)</span></div>'+
-  '<div class="sr"><span class="sn">3</span><span>삭제: 수정 모달 하단 <strong>🗑️ 삭제</strong> 버튼 클릭</span></div></div>'+
-  '<h2>📊 엑셀 일괄 등록</h2>'+
-  '<div class="step">'+
-  '<div class="sr"><span class="sn">1</span><span>Q&A 탭 오른쪽 상단 <strong>📊 엑셀 일괄 등록</strong> 클릭</span></div>'+
-  '<div class="sr"><span class="sn">2</span><span><strong>📥 예시 엑셀 다운로드</strong>로 양식 받기</span></div>'+
-  '<div class="sr"><span class="sn">3</span><span>양식에 Q&A 입력 후 저장</span></div>'+
-  '<div class="sr"><span class="sn">4</span><span>파일 업로드 → 미리보기 확인 → <strong>🚀 일괄 등록하기</strong></span></div></div>'+
-  '<h2>🔍 AI검색 제외 (xs 필드)</h2>'+
-  '<table><tr><th>값</th><th>의미</th></tr>'+
-  '<tr><td><code>0</code></td><td>🟢 AI 검색 포함 (기본)</td></tr>'+
-  '<tr><td><code>1</code></td><td>🔴 AI 검색 제외 (탭에서는 보임)</td></tr></table>'+
-  '<h2>👤 관리자 계정</h2>'+
-  '<ul><li>사이드바 → <strong>관리자 계정</strong> → <strong>+ 계정 추가</strong></li>'+
-  '<li>⚠️ 계정 목록이 비면 모든 구글 계정이 접근 가능 — 반드시 1개 이상 유지</li></ul></div>';
-}
+/* ── DOM 이벤트 연결 (onclick 대신 addEventListener 사용) ── */
+document.getElementById('login-btn').addEventListener('click', signIn);
+document.getElementById('logout-btn').addEventListener('click', function(){ auth.signOut().then(function(){location.reload();}); });
+document.getElementById('modal').addEventListener('click', function(e){ if(e.target===this)closeModal(); });
+document.getElementById('modal-cancel').addEventListener('click', closeModal);
+document.getElementById('modal-save').addEventListener('click', doSave);
+document.getElementById('del-btn').addEventListener('click', doDelete);
+document.getElementById('xl-modal').addEventListener('click', function(e){ if(e.target===this)closeXlModal(); });
+document.getElementById('xl-cancel').addEventListener('click', closeXlModal);
+document.getElementById('xl-upload-btn').addEventListener('click', doXlUpload);
+document.getElementById('dl-sample-btn').addEventListener('click', downloadSample);
+document.getElementById('xl-zone').addEventListener('click', function(){ document.getElementById('xl-file').click(); });
+document.getElementById('xl-zone').addEventListener('dragover', function(e){ e.preventDefault(); this.classList.add('drag'); });
+document.getElementById('xl-zone').addEventListener('dragleave', function(){ this.classList.remove('drag'); });
+document.getElementById('xl-zone').addEventListener('drop', function(e){ e.preventDefault(); this.classList.remove('drag'); handleXlFile(e.dataTransfer.files[0]); });
+document.getElementById('xl-file').addEventListener('change', function(){ handleXlFile(this.files[0]); });
+document.querySelectorAll('.sb-item[data-tab]').forEach(function(el){ el.addEventListener('click', function(){ go(this.dataset.tab); }); });
+
+})(); // IIFE 끝
 </script>
 </body>
 </html>
