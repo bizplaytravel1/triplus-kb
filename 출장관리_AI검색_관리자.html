@@ -239,8 +239,10 @@ header{background:#1a1f36;padding:0 24px;display:flex;align-items:center;gap:16p
 <script>
 (function(){
 'use strict';
+console.log('[관리자] 스크립트 초기화 시작');
 
 /* ── Firebase 초기화 ── */
+console.log('[관리자] Firebase SDK 상태:', typeof firebase !== 'undefined' ? 'OK' : 'NOT LOADED');
 firebase.initializeApp({
   apiKey:"AIzaSyCvUli2EwQiaEdWtQdpFHmqIhtTbnbixaE",
   authDomain:"bizplay-kb.firebaseapp.com",
@@ -263,16 +265,40 @@ var debouncedSearch=debounce(function(v){KW=v;CUR=1;render();},300);
 /* ── 인증 ── */
 function signIn(){
   if(location.protocol==='file:'){showLoginErr('⚠️ GitHub Pages 주소에서 열어주세요.');return;}
+  console.log('[관리자] 로그인 시도...');
+  var loginBtn = document.getElementById('login-btn');
+  if(loginBtn){ loginBtn.textContent='로그인 중...'; loginBtn.disabled=true; }
   var p=new firebase.auth.GoogleAuthProvider();
-  auth.signInWithPopup(p).catch(function(e){
-    if(e.code==='auth/popup-blocked'||e.code==='auth/popup-closed-by-user'){auth.signInWithRedirect(p);}
-    else showLoginErr('로그인 실패: '+e.message);
+  p.addScope('email');
+  auth.signInWithPopup(p).then(function(result){
+    console.log('[관리자] 팝업 로그인 성공:', result.user.email);
+  }).catch(function(e){
+    console.warn('[관리자] 팝업 실패:', e.code, e.message);
+    if(loginBtn){ loginBtn.textContent='Google 계정으로 로그인'; loginBtn.disabled=false; }
+    if(e.code==='auth/popup-blocked'||e.code==='auth/popup-closed-by-user'||e.code==='auth/cancelled-popup-request'){
+      console.log('[관리자] 팝업 차단됨 → redirect로 전환');
+      showLoginErr('팝업이 차단되었습니다. Redirect 방식으로 재시도합니다...');
+      setTimeout(function(){ auth.signInWithRedirect(p); }, 1500);
+    } else if(e.code==='auth/network-request-failed'){
+      showLoginErr('네트워크 오류. 인터넷 연결을 확인하세요.');
+    } else if(e.code==='auth/invalid-api-key'||e.code==='auth/app-not-authorized'){
+      showLoginErr('Firebase 설정 오류: ' + e.code + '\n도메인 승인을 확인하세요.');
+    } else {
+      showLoginErr('로그인 오류 ['+e.code+']: '+e.message);
+    }
   });
 }
 function showLoginErr(m){var el=document.getElementById('login-err');el.textContent=m;el.style.display='block';}
 
-auth.getRedirectResult().catch(function(e){if(e.code)showLoginErr(e.message);});
+auth.getRedirectResult().then(function(result){
+  if(result && result.user) console.log('[관리자] Redirect 로그인 성공:', result.user.email);
+}).catch(function(e){
+  console.error('[관리자] Redirect 결과 오류:', e.code, e.message);
+  if(e.code) showLoginErr('오류('+e.code+'): '+e.message);
+});
+console.log('[관리자] Firebase 초기화 완료');
 auth.onAuthStateChanged(async function(u){
+  console.log('[관리자] 인증 상태 변경:', u ? u.email : 'null');
   if(!u){
     document.getElementById('login-screen').style.display='flex';
     document.getElementById('admin-app').style.display='none';
