@@ -336,7 +336,7 @@ async function loadFromFirestore() {
   // allItems 빌드
   for (var i = 0; i < manDocs.length; i++) {
     var m = manDocs[i];
-    allItems.push({type:"manual",source:m.s,category:m.c||"",item:m.it||"",question:m.q||"",answer:m.a||"",remark:m.r||"",img1:m.img1||"",img1_caption:m.img1_caption||"",img2:m.img2||"",img2_caption:m.img2_caption||"",xs:m.xs||0,_docId:m.id||""});
+    allItems.push({type:"manual",source:m.s,category:m.c||"",item:m.it||"",question:m.q||"",answer:m.a||"",remark:m.r||"",img:m.img||"",img1:m.img1||"",img1_caption:m.img1_caption||"",img2:m.img2||"",img2_caption:m.img2_caption||"",xs:m.xs||0,_docId:m.id||""});
   }
   for (var i = 0; i < qaDocs.length; i++) {
     var q = qaDocs[i];
@@ -370,7 +370,7 @@ var REF_IMGS = {
 };
 
 function openImgModal(b64, label) {
-  document.getElementById('imgModalSrc').src = b64;
+  document.getElementById('imgModalSrc').src = b64;  // b64 or URL 모두 OK
   document.getElementById('imgModalCaption').textContent = label;
   document.getElementById('imgModal').classList.add('open');
 }
@@ -765,8 +765,19 @@ async function doSearch() {
     html+="<div class=\"ans-header\"><div class=\"ans-label\">\u2705 답변</div><button class=\"copy-btn\" onclick=\"copyAns(\u0027"+x.idx+"\u0027,event)\">\uD83D\uDCCB 복사</button></div>";
     html+="<div class=\"ans-text\">"+aHtml+"</div>";
     if(item.remark) html+="<div class=\"remark\">\uD83D\uDCCE "+esc(item.remark)+"</div>";
-    // 참고 이미지
-    // item 직접 이미지 (img1, img2)
+    // 참고 이미지 (관리자에서 Storage URL로 업로드한 이미지)
+    if (item.img) {
+      var imgUrl = esc(item.img);
+      var imgCap = esc(item.img_caption||'');
+      html += '<div class="ref-imgs">';
+      html += '<div style="font-size:11px;color:var(--acc2);font-weight:700;width:100%;margin-bottom:4px">\uD83D\uDDBC\uFE0F 첨부 이미지 (클릭하면 확대)</div>';
+      html += '<div class="ref-thumb url-img-thumb" data-imgsrc="' + imgUrl + '" data-imgcap="' + imgCap + '">';
+      html += '<img src="' + imgUrl + '" alt="첨부이미지" style="max-height:120px;object-fit:cover">';
+      if (item.img_caption) html += '<div class="ref-thumb-label">' + imgCap + '</div>';
+      html += '</div>';
+      html += '</div>';
+    }
+    // item 직접 이미지 (img1, img2) - base64
     if (item.img1 || item.img2) {
       html += "<div class=\"ref-imgs\">";
       html += "<div style=\"font-size:11px;color:var(--acc2);font-weight:700;width:100%;margin-bottom:4px\">\uD83D\uDDBC\uFE0F \uCC38\uACE0 \uC774\uBBF8\uC9C0 (\uD074\uB9AD\uD558\uBA74 \uD655\uB300)</div>";
@@ -809,6 +820,13 @@ window.closeImgModal = closeImgModal;
   window.nyToggle = nyToggle;
 document.addEventListener("DOMContentLoaded", function() {
   document.getElementById("searchInput").addEventListener("keydown", function(e){if(e.key==="Enter") doSearch();});
+  // Storage URL 이미지 썸네일 클릭 (이벤트 위임)
+  document.getElementById("results").addEventListener("click", function(e) {
+    var thumb = e.target.closest(".url-img-thumb");
+    if (thumb) {
+      openImgModal(thumb.dataset.imgsrc, thumb.dataset.imgcap || "");
+    }
+  });
 });
 
 var jfFilter="all";

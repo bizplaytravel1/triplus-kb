@@ -596,26 +596,25 @@ function mkFields(sch,data){
     if(f.t==='sel'){h+='<select id="f-'+f.k+'">'+(f.opts||[]).map(function(o){return '<option value="'+o+'"'+(String(v)===String(o)?' selected':'')+'>'+(o||'-')+'</option>';}).join('')+'</select>';}
     else if(f.tall){h+='<textarea id="f-'+f.k+'" class="tall" placeholder="'+(f.ph||'')+'">'+esc(String(v))+'</textarea>';}
     else if(f.t==='img'){
-      var hasImg=v&&v.startsWith('http');
+      var hasImg=v&&(v.startsWith('http')||v.startsWith('/'));
       h+='<div id="img-wrap-'+f.k+'">';
-      if(hasImg){
-        h+='<div class="img-preview-wrap" id="prev-'+f.k+'">';
-        h+='<img src="'+esc(v)+'" alt="첨부이미지">';
-        h+='<button class="img-remove-btn" data-rmkey="'+f.k+'">✕</button>';
-        h+='</div>';
-        h+='<input type="hidden" id="f-'+f.k+'" value="'+esc(v)+'">';
-        h+='<div class="img-url-box" id="url-'+f.k+'" style="display:block">'+esc(v)+'</div>';
-      } else {
-        h+='<div class="img-upload-wrap" id="zone-'+f.k+'" data-zonekey="'+f.k+'">';
-        h+='<input type="file" id="fi-'+f.k+'" data-filekey="'+f.k+'" accept="image/*">';
-        h+='<div class="img-upload-icon">🖼️</div>';
-        h+='<div class="img-upload-text">클릭 또는 드래그<br><strong>JPG, PNG, GIF, WebP</strong> (최대 5MB)</div>';
-        h+='</div>';
-        h+='<div class="img-progress" id="prog-'+f.k+'"><div class="img-progress-bar" id="progbar-'+f.k+'"></div></div>';
-        h+='<div class="img-preview-wrap" id="prev-'+f.k+'" style="display:none"><img src="" alt="미리보기"><button class="img-remove-btn" data-rmkey="'+f.k+'">✕</button></div>';
-        h+='<input type="hidden" id="f-'+f.k+'" value="">';
-        h+='<div class="img-url-box" id="url-'+f.k+'"></div>';
-      }
+      /* 업로드 존 — 항상 렌더링, 이미지 있으면 숨김 */
+      h+='<div class="img-upload-wrap" id="zone-'+f.k+'" data-zonekey="'+f.k+'"'+(hasImg?' style="display:none"':'')+' >';
+      h+='<input type="file" id="fi-'+f.k+'" data-filekey="'+f.k+'" accept="image/*">';
+      h+='<div class="img-upload-icon">🖼️</div>';
+      h+='<div class="img-upload-text">클릭 또는 드래그<br><strong>JPG, PNG, GIF, WebP</strong> (최대 5MB)</div>';
+      h+='</div>';
+      /* 업로드 진행바 */
+      h+='<div class="img-progress" id="prog-'+f.k+'"><div class="img-progress-bar" id="progbar-'+f.k+'"></div></div>';
+      /* 미리보기 — 이미지 있으면 바로 표시 */
+      h+='<div class="img-preview-wrap" id="prev-'+f.k+'"'+(hasImg?'':' style="display:none"')+'>';
+      h+='<img src="'+(hasImg?esc(v):'')+'" alt="미리보기" style="max-width:100%;max-height:200px;border-radius:8px;border:1.5px solid #e2e8f0;display:block">';
+      h+='<button class="img-remove-btn" data-rmkey="'+f.k+'">✕</button>';
+      h+='</div>';
+      /* URL 표시 박스 */
+      h+='<div class="img-url-box" id="url-'+f.k+'"'+(hasImg?' style="display:block"':'')+'>'+esc(hasImg?v:'')+'</div>';
+      /* hidden input — 항상 존재, 현재 URL 값 보유 */
+      h+='<input type="hidden" id="f-'+f.k+'" value="'+esc(hasImg?v:'')+'">';
       h+='</div>';
     }
     else{h+='<input id="f-'+f.k+'" type="text" value="'+esc(String(v))+'" placeholder="'+(f.ph||'')+'">';}
@@ -641,12 +640,24 @@ function openEdit(col,id,tbl){
   document.getElementById('modal').classList.add('open');
 }
 function closeModal(){document.getElementById('modal').classList.remove('open');}
+// 업로드 진행 중 여부 추적
+var IMG_UPLOADING = false;
+
 async function doSave(){
+  // 이미지 업로드 중이면 대기 안내
+  if(IMG_UPLOADING){
+    var msg=document.getElementById('modal-msg');
+    msg.textContent='⏳ 이미지 업로드 중입니다. 잠시 후 다시 저장해주세요.';
+    msg.className='modal-msg err';
+    return;
+  }
   var msg=document.getElementById('modal-msg');msg.textContent='저장 중...';msg.className='modal-msg';
   try{
     var sch=getSch(),data=getVals(sch);
     if(EDIT_COL==='qa'||EDIT_COL==='manual')data.xs=parseInt(data.xs)||0;
     if(EDIT_COL==='tables')data.tableName=EDIT_TBL;
+    // img 필드 빈 문자열이면 키 자체를 제거 (Firestore에 빈 값 저장 방지)
+    if('img' in data && data.img==='') delete data.img;
     var sid;
     if(EDIT_ID){await db.collection(EDIT_COL).doc(EDIT_ID).update(data);sid=EDIT_ID;}
     else{var nid=EDIT_COL+'_'+Date.now();data.id=nid;await db.collection(EDIT_COL).doc(nid).set(data);sid=nid;}
@@ -664,18 +675,32 @@ async function doDelete(){
 function handleImgFile(key, file){
   if(!file) return;
   if(file.size > 5*1024*1024){alert('파일이 5MB를 초과합니다.'); return;}
-  // 업로드 전 미리보기 (로컬)
+
+  // 업로드 존 숨기고 미리보기 표시 (로컬 blob)
+  var zone=document.getElementById('zone-'+key);
+  var prev=document.getElementById('prev-'+key);
+  if(zone) zone.style.display='none';
+
   var reader=new FileReader();
   reader.onload=function(e){
-    var prev=document.getElementById('prev-'+key);
-    if(prev){prev.style.display='inline-block';prev.querySelector('img').src=e.target.result;}
+    if(prev){
+      prev.style.display='inline-block';
+      var img=prev.querySelector('img');
+      if(img) img.src=e.target.result;
+    }
   };
   reader.readAsDataURL(file);
-  // Firebase Storage 업로드
+
+  // 저장 버튼 비활성화 + 업로드 중 플래그
+  IMG_UPLOADING=true;
+  var saveBtn=document.getElementById('modal-save');
+  if(saveBtn){saveBtn.disabled=true;saveBtn.textContent='⏳ 업로드 중...';}
+
   var prog=document.getElementById('prog-'+key);
   var bar=document.getElementById('progbar-'+key);
   var urlBox=document.getElementById('url-'+key);
   if(prog) prog.style.display='block';
+
   var fname='images/'+Date.now()+'_'+file.name.replace(/[^a-zA-Z0-9._-]/g,'_');
   var ref=storage.ref(fname);
   var task=ref.put(file);
@@ -684,7 +709,12 @@ function handleImgFile(key, file){
       var pct=Math.round(snap.bytesTransferred/snap.totalBytes*100);
       if(bar) bar.style.width=pct+'%';
     },
-    function(err){alert('업로드 실패: '+err.message); if(prog) prog.style.display='none';},
+    function(err){
+      alert('업로드 실패: '+err.message);
+      if(prog) prog.style.display='none';
+      IMG_UPLOADING=false;
+      if(saveBtn){saveBtn.disabled=false;saveBtn.textContent='💾 저장';}
+    },
     function(){
       task.snapshot.ref.getDownloadURL().then(function(url){
         var hidden=document.getElementById('f-'+key);
@@ -692,6 +722,9 @@ function handleImgFile(key, file){
         if(urlBox){urlBox.style.display='block';urlBox.textContent=url;}
         if(prog) prog.style.display='none';
         if(bar) bar.style.width='0%';
+        // 업로드 완료 → 저장 버튼 복구
+        IMG_UPLOADING=false;
+        if(saveBtn){saveBtn.disabled=false;saveBtn.textContent='💾 저장';}
       });
     }
   );
@@ -702,12 +735,19 @@ function removeImg(key){
   var hidden=document.getElementById('f-'+key);
   if(hidden) hidden.value='';
   var prev=document.getElementById('prev-'+key);
-  if(prev) prev.style.display='none';
+  if(prev){
+    prev.style.display='none';
+    var img=prev.querySelector('img');
+    if(img) img.src='';
+  }
   var urlBox=document.getElementById('url-'+key);
   if(urlBox){urlBox.style.display='none';urlBox.textContent='';}
   // 업로드 존 다시 표시
   var zone=document.getElementById('zone-'+key);
   if(zone) zone.style.display='block';
+  // 파일 input 초기화 (같은 파일 재선택 가능하도록)
+  var fi=document.getElementById('fi-'+key);
+  if(fi) fi.value='';
 }
 window.removeImg=removeImg;
 
