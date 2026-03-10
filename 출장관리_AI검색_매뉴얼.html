@@ -1,0 +1,1980 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>출장관리 AI 검색 매뉴얼</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap');
+:root{--bg:#f0f4ff;--surface:#ffffff;--surface2:#e8eef8;--border:#d0d9ee;--accent:#2563eb;--accent2:#059669;--text:#1a1f36;--text2:#4b5680;--text3:#94a3c0}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+header{background:var(--surface);border-bottom:1px solid var(--border);padding:14px 32px;display:flex;align-items:center;gap:16px;position:sticky;top:0;z-index:200}
+.logo-icon{width:34px;height:34px;background:linear-gradient(135deg,var(--accent),var(--accent2));border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
+.logo-text{font-size:15px;font-weight:700}.logo-sub{font-size:11px;color:var(--text2);margin-top:1px}
+.hdr-right{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap}
+.badge{background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:3px 10px;font-size:11px;color:var(--text2);font-family:'IBM Plex Mono',monospace;white-space:nowrap}
+.badge span{color:var(--accent2);font-weight:600}
+.top-nav{background:var(--surface);border-bottom:1px solid var(--border);padding:0 32px;position:sticky;top:53px;z-index:199;display:flex;overflow-x:auto}
+.nav-tab{padding:12px 18px;font-size:13px;font-family:'Noto Sans KR',sans-serif;color:var(--text3);cursor:pointer;border:none;background:none;border-bottom:2px solid transparent;transition:all .2s;white-space:nowrap}
+.nav-tab:hover{color:var(--text2)}.nav-tab.active{color:var(--accent);border-bottom-color:var(--accent);font-weight:600}
+.page{display:none}.page.active{display:block}
+.main{max-width:900px;margin:0 auto;padding:28px 24px 80px}
+.search-label{font-size:13px;color:var(--text2);margin-bottom:10px}
+.search-box{display:flex;gap:10px;margin-bottom:12px}
+.search-input-wrap{flex:1;background:var(--surface);border:1.5px solid var(--border);border-radius:12px;display:flex;align-items:center;padding:0 16px;transition:border-color .2s}
+.search-input-wrap:focus-within{border-color:var(--accent);box-shadow:0 0 0 3px rgba(79,142,247,.12)}
+.si-icon{color:var(--text3);margin-right:10px;font-size:16px}
+.search-input{flex:1;background:none;border:none;outline:none;color:var(--text);font-family:'Noto Sans KR',sans-serif;font-size:15px;padding:15px 0}
+.search-input::placeholder{color:var(--text3)}
+.search-btn{background:var(--accent);color:#fff;border:none;cursor:pointer;border-radius:12px;padding:0 22px;font-family:'Noto Sans KR',sans-serif;font-size:14px;font-weight:600;transition:background .2s;white-space:nowrap}
+.search-btn:hover{background:#3a7ae8}.search-btn:disabled{background:var(--surface2);color:var(--text3);cursor:not-allowed}
+.filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:22px}
+.filter-btn{background:var(--surface2);border:1px solid var(--border);color:var(--text2);border-radius:20px;padding:5px 14px;font-size:12px;cursor:pointer;font-family:'Noto Sans KR',sans-serif;transition:all .15s}
+.filter-btn:hover{border-color:var(--accent);color:var(--accent)}.filter-btn.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+.chips-label{font-size:12px;color:var(--text3);margin-bottom:8px}
+.chips{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:24px}
+.chip{background:var(--surface2);border:1px solid var(--border);color:var(--text2);border-radius:8px;padding:6px 12px;font-size:12px;cursor:pointer;font-family:'Noto Sans KR',sans-serif;transition:all .15s}
+.chip:hover{border-color:var(--accent2);color:var(--accent2)}
+.ai-box{background:var(--surface);border:1px solid var(--border);border-left:3px solid var(--accent);border-radius:12px;padding:18px 22px;margin-bottom:22px;display:none}
+.ai-box.on{display:block;animation:fadeIn .3s ease}
+.ai-hdr{display:flex;align-items:center;gap:8px;margin-bottom:12px}
+.ai-badge{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;letter-spacing:.05em}
+.ai-sub{font-size:13px;color:var(--text2)}.ai-text{font-size:14px;line-height:1.8;color:var(--text);white-space:pre-wrap}
+.ai-loading{display:flex;align-items:center;gap:10px;color:var(--text2);font-size:14px}
+.spinner{width:18px;height:18px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite}
+.res-hdr{display:none;justify-content:space-between;align-items:center;margin-bottom:14px}
+.res-count{font-size:13px;color:var(--text2)}.res-count strong{color:var(--accent);font-family:'IBM Plex Mono',monospace}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:12px;margin-bottom:10px;overflow:hidden;transition:border-color .15s;cursor:pointer}
+.card:hover{border-color:var(--accent)}.card.open{border-color:var(--accent2)}
+.card-top{padding:14px 18px;display:flex;align-items:flex-start;gap:10px}
+.card-tags{display:flex;gap:5px;flex-shrink:0;margin-top:2px}
+.tag{font-size:10px;font-weight:600;padding:2px 7px;border-radius:4px;letter-spacing:.04em;white-space:nowrap}
+.t-manual{background:#dbeafe;color:#1d4ed8}.t-triplus{background:#d1fae5;color:#065f46}.t-occupi{background:#ffedd5;color:#92400e}
+.t-overseas{background:#dcfce7;color:#166534}.t-jungbig{background:#fef9c3;color:#854d0e}.t-sukbak{background:#fce7f3;color:#9d174d}
+.t-route{background:#1e2a3d;color:#1d4ed8}.t-transit{background:#ccfbf1;color:#115e59}
+.card-body{flex:1;min-width:0}.card-src{font-size:11px;color:var(--text3);margin-bottom:3px}
+.card-q{font-size:14px;color:var(--text);line-height:1.6;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.card-q.open{display:block}
+.card-score{display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0}
+.sc-wrap{display:flex;align-items:center;gap:6px}
+.sc-val{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--accent2);font-weight:600}
+.sc-bar{width:46px;height:4px;background:var(--border);border-radius:2px;overflow:hidden}
+.sc-fill{height:100%;background:var(--accent2);border-radius:2px}
+.arrow{color:var(--text3);font-size:11px;margin-top:2px}
+.card-ans{display:none;padding:0 18px 14px;border-top:1px solid var(--border)}
+.card-ans.open{display:block;padding-top:14px;animation:fadeIn .2s ease}
+.ans-label{font-size:11px;color:var(--accent2);font-weight:600;margin-bottom:6px;letter-spacing:.05em}
+.ans-text{font-size:13px;line-height:1.85;color:var(--text2);white-space:pre-wrap}
+.remark{font-size:12px;color:var(--text3);margin-top:8px;border-top:1px solid var(--border);padding-top:8px}
+.welcome{text-align:center;padding:56px 20px;color:var(--text3)}.welcome-icon{font-size:44px;margin-bottom:14px}
+.welcome-title{font-size:17px;color:var(--text2);font-weight:600;margin-bottom:8px}.welcome-sub{font-size:14px;line-height:1.7}
+.no-results{text-align:center;padding:44px 20px;color:var(--text3);font-size:14px;display:none}
+.init-loading{text-align:center;padding:40px;color:var(--text3);font-size:14px}
+.cat-page{max-width:1100px;margin:0 auto;padding:28px 24px 80px}
+.cat-page h2{font-size:17px;font-weight:700;margin-bottom:6px}
+.cat-desc{font-size:13px;color:var(--text2);margin-bottom:18px}
+.cat-filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+.cf{background:var(--surface2);border:1px solid var(--border);color:var(--text2);border-radius:20px;padding:4px 14px;font-size:12px;cursor:pointer;font-family:'Noto Sans KR',sans-serif;transition:all .15s}
+.cf:hover{border-color:var(--accent);color:var(--accent)}.cf.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+.tbl-search{width:100%;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 16px;color:var(--text);font-family:'Noto Sans KR',sans-serif;font-size:14px;outline:none;margin-bottom:10px;transition:border-color .2s}
+.tbl-search:focus{border-color:var(--accent)}.tbl-search::placeholder{color:var(--text3)}
+.tbl-count{font-size:12px;color:var(--text3);margin-bottom:10px;font-family:'IBM Plex Mono',monospace}
+.tbl-count span{color:var(--accent)}
+.dtbl{width:100%;border-collapse:collapse;font-size:13px}
+.dtbl th{background:var(--surface2);color:var(--text2);padding:10px 14px;text-align:left;font-weight:600;font-size:12px;border-bottom:1px solid var(--border);white-space:nowrap;position:sticky;top:0;z-index:5}
+.dtbl td{padding:10px 14px;border-bottom:1px solid var(--border);color:var(--text);vertical-align:top;line-height:1.6}
+.dtbl tr:hover td{background:var(--surface2)}
+.amt{font-family:'IBM Plex Mono',monospace;color:var(--accent2);font-weight:600;white-space:nowrap}
+.s-on{color:var(--accent2)}.s-off{color:var(--text3)}
+.btype{display:inline-block;font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;white-space:nowrap}
+.btype-기타증빙{background:#dbeafe;color:#1d4ed8}.btype-마이데이터{background:#d1fae5;color:#065f46}
+
+.card-img-wrap{margin:0 18px 14px;border-radius:10px;overflow:hidden;border:1px solid var(--border)}
+.card-img-wrap img{width:100%;display:block;max-height:400px;object-fit:contain;background:var(--surface2)}
+.card-img-caption{font-size:11px;color:var(--text3);padding:6px 10px;background:var(--surface2);text-align:center;border-top:1px solid var(--border)}
+
+mark{background:rgba(79,142,247,.25);color:var(--accent);border-radius:3px;padding:0 2px}
+@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+@keyframes spin{to{transform:rotate(360deg)}}
+::-webkit-scrollbar{width:6px}::-webkit-scrollbar-track{background:var(--bg)}::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+@media(max-width:600px){.main,.cat-page{padding:18px 14px 60px}header{padding:12px 14px}.hdr-right{display:none}}
+
+  /* ── 참고자료 이미지 ── */
+  .ref-imgs { margin-top: 14px; display: flex; gap: 10px; flex-wrap: wrap; }
+  .ref-thumb {
+    border: 1px solid var(--border); border-radius: 8px; overflow: hidden;
+    cursor: pointer; transition: all .2s; flex-shrink: 0;
+  }
+  .ref-thumb:hover { border-color: var(--accent); box-shadow: 0 4px 16px rgba(79,142,247,.3); transform: scale(1.02); }
+  .ref-thumb img { display: block; height: 80px; width: auto; max-width: 200px; object-fit: cover; }
+  .ref-thumb-label { font-size: 10px; color: var(--text3); padding: 3px 8px; background: var(--surface2); text-align: center; }
+  /* ── 이미지 모달 ── */
+  .img-modal {
+    display: none; position: fixed; inset: 0; z-index: 9999;
+    background: rgba(0,0,0,.85); align-items: center; justify-content: center;
+    padding: 20px;
+  }
+  .img-modal.open { display: flex; animation: fadeIn .2s ease; }
+  .img-modal img { max-width: 95vw; max-height: 90vh; border-radius: 10px; box-shadow: 0 20px 60px rgba(0,0,0,.8); }
+  .img-modal-close {
+    position: fixed; top: 16px; right: 20px; font-size: 28px; color: #fff;
+    cursor: pointer; background: rgba(15,23,42,.15); border-radius: 50%;
+    width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;
+    transition: background .2s;
+  }
+  .img-modal-close:hover { background: rgba(240,123,123,.7); }
+  .img-modal-caption { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); font-size: 13px; color: rgba(255,255,255,.7); background: rgba(0,0,0,.6); padding: 6px 16px; border-radius: 20px; white-space: nowrap; }
+  @keyframes fadeIn { from { opacity:0 } to { opacity:1 } }
+
+
+/* 해외출장 카드 */
+.ov-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;margin-bottom:14px;overflow:hidden;transition:box-shadow .2s}
+.ov-card:hover{box-shadow:0 4px 16px rgba(37,99,235,.10);border-color:var(--accent)}
+.ov-card-head{padding:14px 18px 10px;display:flex;align-items:flex-start;gap:10px;border-bottom:1px solid var(--border)}
+.ov-cat{flex-shrink:0;font-size:11px;font-weight:700;padding:3px 8px;border-radius:20px;background:#e0f2fe;color:#075985;white-space:nowrap}
+.ov-title{font-size:14px;font-weight:600;color:var(--text);line-height:1.5}
+.ov-body{padding:14px 18px;font-size:13px;color:var(--text2);line-height:1.8;white-space:pre-wrap}
+
+.ans-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+.copy-btn{font-size:11px;padding:3px 10px;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--text2);cursor:pointer;transition:all .15s;white-space:nowrap;flex-shrink:0}
+.copy-btn:hover{border-color:var(--accent);color:var(--accent);background:#eff6ff}
+
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo-icon">&#9992;</div>
+  <div>
+    <div class="logo-text">출장관리 AI 검색 매뉴얼</div>
+    <div class="logo-sub">현대자동차 트리플러스 운영대응 가이드</div>
+  </div>
+  <div class="hdr-right">
+    <div class="badge">매뉴얼 <span id="cntManual">-</span>건</div>
+    <div class="badge">Q&amp;A <span id="cntQA">-</span>건</div>
+  </div>
+</header>
+
+<nav class="top-nav">
+  <button class="nav-tab active" id="ntab-search" onclick="gotoPage('search')">&#128269; AI 검색</button>
+  <button class="nav-tab" id="ntab-jungbig" onclick="gotoPage('jungbig')">&#128196; 증빙규정</button>
+  <button class="nav-tab" id="ntab-sukbak" onclick="gotoPage('sukbak')">&#127968; 숙박비규정</button>
+  <button class="nav-tab" id="ntab-yowei" onclick="gotoPage('yowei')">&#128205; 예외거리구간</button>
+  <button class="nav-tab" id="ntab-gita" onclick="gotoPage('gita')">&#128652; 기타교통수단구간</button>
+  <button class="nav-tab" id="ntab-overseas" onclick="gotoPage('overseas')">&#9992;&#65039; 해외출장</button>
+  <button class="nav-tab" id="ntab-nanyang" onclick="gotoPage('nanyang')">&#128664; 남양시내교통비</button>
+  <button class="nav-tab" id="ntab-sinai" onclick="gotoPage('sinai')">&#128652; 시내교통비 신청</button>
+</nav>
+
+<div class="page active" id="page-search">
+<div class="main">
+<div class="search-label">&#128269; 문장이나 키워드로 검색하세요</div>
+  <div class="search-box">
+    <div class="search-input-wrap">
+      <span class="si-icon">&#9003;</span>
+      <input type="text" class="search-input" id="searchInput" placeholder="예: 남양연구소에서 동탄역까지 교통비 정산 방법은?">
+    </div>
+    <button class="search-btn" id="searchBtn" onclick="doSearch()">AI 검색</button>
+  </div>
+  <div class="filters">
+    <button class="filter-btn active" id="fb-all" onclick="setFilter('all',this)">전체</button>
+    <button class="filter-btn" onclick="setFilter('출장정책',this)">&#128203; 출장정책</button>
+    <button class="filter-btn" onclick="setFilter('운영정책',this)">&#9881; 운영정책</button>
+    <button class="filter-btn" onclick="setFilter('남양연구소',this)">&#127970; 남양연구소</button>
+    <button class="filter-btn" onclick="setFilter('트리플러스',this)">&#128172; 트리플러스 Q&amp;A</button>
+    <button class="filter-btn" onclick="setFilter('오큐파이',this)">&#128172; 오큐파이 Q&amp;A</button>
+  </div>
+  <div class="chips-label">자주 찾는 키워드</div>
+  <div class="chips">
+    <span class="chip" onclick="quickSearch('남양연구소 교통비')">남양연구소 교통비</span>
+    <span class="chip" onclick="quickSearch('출장정산서 작성 방법')">출장정산서 작성 방법</span>
+    <span class="chip" onclick="quickSearch('기타교통수단 정액요금')">기타교통수단 정액요금</span>
+    <span class="chip" onclick="quickSearch('50km 미만 출장')">50km 미만 출장</span>
+    <span class="chip" onclick="quickSearch('숙박비 규정')">숙박비 규정</span>
+    <span class="chip" onclick="quickSearch('일비 지급 기준')">일비 지급 기준</span>
+    <span class="chip" onclick="quickSearch('해외출장 교통비')">해외출장 교통비</span>
+    <span class="chip" onclick="quickSearch('KTX 취소 환불')">KTX 취소 환불</span>
+    <span class="chip" onclick="quickSearch('울산공장 이동경로')">울산공장 이동경로</span>
+    <span class="chip" onclick="quickSearch('의왕연구소 출장')">의왕연구소 출장</span>
+    <span class="chip" onclick="quickSearch('인천공항 항공 교통비')">인천공항 항공 교통비</span>
+    <span class="chip" onclick="quickSearch('출장기간 설정')">출장기간 설정</span>
+    <span class="chip" onclick="quickSearch('서울역 이동구간')">서울역 이동구간</span>
+    <span class="chip" onclick="quickSearch('협력사 출장 규정')">협력사 출장 규정</span>
+    <span class="chip" onclick="quickSearch('이동경로 작성 방법')">이동경로 작성 방법</span>
+    <span class="chip" onclick="quickSearch('출장비 영수증 처리')">출장비 영수증 처리</span>
+    <span class="chip" onclick="quickSearch('출장계획서 날짜 선택 불가')">계획서 날짜 선택 불가</span>
+    <span class="chip" onclick="quickSearch('결제 요청 불가 오류')">결제 요청 불가 오류</span>
+    <span class="chip" onclick="quickSearch('계획서 없이 정산서 작성')">계획서 없이 정산서 작성</span>
+    <span class="chip" onclick="quickSearch('하이패스 모듈 설치 오류')">하이패스 모듈 설치 오류</span>
+    <span class="chip" onclick="quickSearch('스크래핑 모듈 설치')">스크래핑 모듈 설치</span>
+  </div>
+  <div class="ai-box" id="aiBox">
+    <div class="ai-hdr">
+      <span class="ai-badge">AI 종합 답변</span>
+      <span class="ai-sub">검색 결과를 바탕으로 생성된 답변</span>
+    </div>
+    <div id="aiText" class="ai-text"></div>
+  </div>
+  <div class="res-hdr" id="resHdr">
+    <div class="res-count">검색 결과: <strong id="resCnt">0</strong>건</div>
+  </div>
+  <div id="results"></div>
+  <div id="noResults" class="no-results">검색 결과가 없습니다. 다른 키워드로 시도해보세요.</div>
+  <div id="welcome" class="welcome" style="display:none">
+    <div class="welcome-icon">&#128193;</div>
+    <div class="welcome-title">현대자동차 출장관리 AI 검색</div>
+    <div class="welcome-sub">출장 관련 궁금한 내용을 자연스러운 문장으로 검색하세요.<br>매뉴얼과 누적된 Q&amp;A 데이터를 분석하여 최적의 답변을 찾아드립니다.</div>
+  </div>
+  <div id="initLoading" class="init-loading">&#9203; 데이터 로딩 중...</div>
+</div>
+</div>
+
+<div class="page" id="page-jungbig">
+<div class="cat-page">
+  <h2>&#128196; 증빙규정</h2>
+  <p class="cat-desc">기타증빙 / 마이데이터 유형별 증빙 처리 규정입니다.</p>
+  <div class="cat-filters" id="jf-filters"></div>
+  <div class="tbl-count" id="jf-count"></div>
+  <div style="overflow-x:auto;overflow-y:auto;max-height:calc(100vh - 220px)">
+    <table class="dtbl">
+      <thead><tr><th>증빙유형</th><th>분류</th><th>케이스</th><th>내용</th></tr></thead>
+      <tbody id="jf-body"></tbody>
+    </table>
+  </div>
+</div>
+</div>
+
+<div class="page" id="page-sukbak">
+<div class="cat-page">
+  <h2>&#127968; 숙박비규정</h2>
+  <p class="cat-desc">사용자그룹별 숙박비 지급 기준입니다.</p>
+  <div class="tbl-count" id="sk-count"></div>
+  <div style="overflow-x:auto;overflow-y:auto;max-height:calc(100vh - 220px)">
+    <table class="dtbl">
+      <thead><tr><th>출장목적</th><th>사용자그룹</th><th>지급구분</th><th>기준금액</th><th>지급옵션</th><th>비고</th></tr></thead>
+      <tbody id="sk-body"></tbody>
+    </table>
+  </div>
+</div>
+</div>
+
+<div class="page" id="page-yowei">
+<div class="cat-page">
+  <h2>&#128205; 예외거리 허용구간</h2>
+  <p class="cat-desc">50km 미만이어도 출장정산서 상신 가능한 예외 이동 구간입니다.</p>
+  <div class="cat-filters" id="yw-filters"></div>
+  <div class="tbl-count" id="yw-count"></div>
+  <div style="overflow-x:auto;overflow-y:auto;max-height:calc(100vh - 220px)">
+    <table class="dtbl">
+      <thead><tr><th>출발지</th><th>도착지</th><th>구분</th><th>상태</th></tr></thead>
+      <tbody id="yw-body"></tbody>
+    </table>
+  </div>
+</div>
+</div>
+
+<div class="page" id="page-gita">
+<div class="cat-page">
+  <h2>&#128652; 기타교통수단 구간</h2>
+  <p class="cat-desc">기타교통수단 정액요금으로 청구 가능한 구간 목록입니다.</p>
+  <div class="tbl-count" id="gt-count"></div>
+  <div style="overflow-x:auto;overflow-y:auto;max-height:calc(100vh - 220px)">
+    <table class="dtbl">
+      <thead><tr><th>출발지</th><th>목적지</th><th>금액</th></tr></thead>
+      <tbody id="gt-body"></tbody>
+    </table>
+  </div>
+</div>
+</div>
+
+<div class="page" id="page-overseas">
+<div class="cat-page">
+  <h2>&#9992;&#65039; 해외출장을 위한 이동</h2>
+  <p class="cat-desc">현대자동차 해외출장을 위한 이동 관련 교통비, 일비, 숙박 규정 안내입니다.</p>
+  <div id="ov-body"></div>
+</div>
+</div>
+
+<div class="page" id="page-nanyang">
+<div class="cat-page">
+  <h2>&#128664; 남양연구소&#183;시내교통비</h2>
+  <p class="cat-desc">남양(8A)&#183;마북(8B)&#183;의왕(8H)&#183;판교(4Q)&#183;강남대로(1H) 근무자 대상 근거리 출장 시내교통비 신청 안내입니다.</p>
+  <div id="ny-body"></div>
+</div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js">
+
+</script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
+<script>
+// ── Firebase 연동 ──────────────────────────────────────────
+var firebaseConfig = {
+  apiKey: "AIzaSyCvUli2EwQiaEdWtQdpFHmqIhtTbnbixaE",
+  authDomain: "bizplay-kb.firebaseapp.com",
+  projectId: "bizplay-kb",
+  storageBucket: "bizplay-kb.firebasestorage.app",
+  messagingSenderId: "424940526706",
+  appId: "1:424940526706:web:9857867a77bfdfdafff6eb"
+};
+firebase.initializeApp(firebaseConfig);
+var db = firebase.firestore();
+
+async function loadFromFirestore() {
+  // QA 로드
+  var qaSnap = await db.collection("qa").get();
+  var qaDocs = qaSnap.docs.map(function(d){ return d.data(); });
+  
+  // 매뉴얼 로드
+  var manSnap = await db.collection("manual").get();
+  var manDocs = manSnap.docs.map(function(d){ return d.data(); });
+
+  // allItems 빌드
+  for (var i = 0; i < manDocs.length; i++) {
+    var m = manDocs[i];
+    allItems.push({type:"manual",source:m.s,category:m.c||"",item:m.it||"",question:m.q||"",answer:m.a||"",remark:m.r||"",img1:m.img1||"",img1_caption:m.img1_caption||"",img2:m.img2||"",img2_caption:m.img2_caption||"",xs:m.xs||0,_docId:m.id||""});
+  }
+  for (var i = 0; i < qaDocs.length; i++) {
+    var q = qaDocs[i];
+    allItems.push({type:"qa",source:q.s,category:q.c||"",item:"",question:q.q||"",answer:q.a||"",remark:"",img:q.img||"",img_caption:q.img_caption||"",img1:q.img1||"",img1_caption:q.img1_caption||"",img2:q.img2||"",img2_caption:q.img2_caption||"",xs:q.xs||0,_docId:q.id||""});
+  }
+
+  // 테이블 데이터 로드
+  var tblSnap = await db.collection("tables").get();
+  TD = {};
+  tblSnap.docs.forEach(function(d){
+    var row = d.data();
+    var tname = row.tableName;
+    if (!TD[tname]) TD[tname] = [];
+    var item = Object.assign({}, row);
+    item._docId = d.id;
+    delete item.tableName; delete item.id;
+    TD[tname].push(item);
+  });
+
+  return { manCnt: manDocs.length, qaDocs: qaDocs };
+}
+
+
+// ── 참고 이미지 데이터 ────────────────────────────────────────────────────────
+var REF_IMGS = {
+  "남양연구소_국내출장비반납": [],
+  "남양연구소_SAP미결반제처리": [],
+  "남양연구소_반납계좌": []
+};
+
+function openImgModal(b64, label) {
+  document.getElementById('imgModalSrc').src = b64;
+  document.getElementById('imgModalCaption').textContent = label;
+  document.getElementById('imgModal').classList.add('open');
+}
+function closeImgModal(e) {
+  if (e.target === document.getElementById('imgModal')) {
+    document.getElementById('imgModal').classList.remove('open');
+  }
+}
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') document.getElementById('imgModal').classList.remove('open');
+});
+
+// ── 참고 이미지 키 매핑 ───────────────────────────────────────────────────────
+function getRefImgKey(item) {
+  var q = (item.question || '').replace(/\s/g,'');
+  var it = (item.item || '').replace(/\s/g,'');
+  var src = item.source || '';
+  if (src === '남양연구소' && (q.indexOf('반납') >= 0 || it.indexOf('반납') >= 0)) {
+    if (q.indexOf('SAP') >= 0 || q.indexOf('전표') >= 0 || q.indexOf('미결') >= 0 || it.indexOf('SAP') >= 0) {
+      return '남양연구소_SAP미결반제처리';
+    }
+    if (q.indexOf('계좌') >= 0 || it.indexOf('계좌') >= 0) {
+      return '남양연구소_반납계좌';
+    }
+    return '남양연구소_국내출장비반납';
+  }
+  return null;
+}
+
+var allItems = [];
+var TD = null;
+var activeFilter = "all";
+
+// ── 남양연구소 시내교통비 렌더 ──────────────────────────────────
+function renderNanyang() {
+  var kw = (document.getElementById('ny-search')||{}).value||'';
+  var nkw = norm(kw);
+  var src = '\ub0a8\uc591\uc5f0\uad6c\uc18c-\uc2dc\ub0b4\uad50\ud1b5\ube44';
+  var items = allItems.filter(function(x){ return x.source===src; });
+  if(nkw) items = items.filter(function(x){
+    return norm(x.question).indexOf(nkw)>=0||norm(x.answer).indexOf(nkw)>=0||norm(x.category).indexOf(nkw)>=0;
+  });
+  var out = '';
+  for(var ii=0; ii<items.length; ii++) {
+    var item = items[ii];
+    var cardId = 'nycard'+ii;
+    // 교통비·유류비·통행료 항목은 테이블로 특별 렌더
+    var isTransport = item.item && item.item.indexOf('\uad50\ud1b5\ube44\xb7\uc720\ub958\ube44\xb7\ud1b5\ud589\ub8cc') >= 0;
+    var ansHtml = '';
+    if(isTransport) {
+      ansHtml += '<table style="width:100%;border-collapse:collapse;font-size:12px;margin-top:8px">';
+      ansHtml += '<thead><tr style="background:#fef9c3"><th style="padding:7px 10px;text-align:left;border-bottom:2px solid #fcd34d;font-weight:700;color:#854d0e">\uc774\ub3d9\uc218\ub2e8</th><th style="padding:7px 10px;border-bottom:2px solid #fcd34d;color:#854d0e;text-align:center">\uad50\ud1b5\ube44</th><th style="padding:7px 10px;border-bottom:2px solid #fcd34d;color:#854d0e;text-align:center">\uc720\ub958\ube44</th><th style="padding:7px 10px;border-bottom:2px solid #fcd34d;color:#854d0e;text-align:center">\ud1b5\ud589\ub8cc</th></tr></thead><tbody>';
+      var rows = [
+        ['\uc77c\ubc18 (G4\xb7\uc784\uc6d0)', '\ubbf8\uc9c0\uae09', '\ubbf8\uc9c0\uae09', '\uc2e4\ube44'],
+        ['\uc77c\ubc18 (\uc774\uc678 \uadf8\ub8f9)', '\uc2e4\ube44', '\uc815\uc561', '\uc2e4\ube44'],
+        ['\uc2dc\ub0b4\uad50\ud1b5 (\ub300\uc911\uad50\ud1b5)', '\uc2e4\ube44', '\ubbf8\uc9c0\uae09', '\ubbf8\uc9c0\uae09'],
+        ['\uc790\uae30\ucc28\ub7c9', '\ubbf8\uc9c0\uae09', '\uc815\uc561', '\uc2e4\ube44'],
+        ['\uc5c5\ubb34\uc6a9\ucc28\xb7\uc2dc\ud5d8\ucc28', '\ubbf8\uc9c0\uae09', '\ubbf8\uc9c0\uae09', '\ubbf8\uc9c0\uae09'],
+        ['\ub3d9\uc2b9\uc790 \ucc28\ub7c9', '\ubbf8\uc9c0\uae09', '\ubbf8\uc9c0\uae09', '\ubbf8\uc9c0\uae09']
+      ];
+      for(var r=0;r<rows.length;r++){
+        var bg = r%2===0?'':'background:#fffbeb';
+        ansHtml += '<tr style="'+bg+'">';
+        ansHtml += '<td style="padding:7px 10px;font-weight:700;color:#78350f;border-bottom:1px solid #fef9c3">'+rows[r][0]+'</td>';
+        for(var c=1;c<4;c++){
+          var val = rows[r][c];
+          var color = val==='\ubbf8\uc9c0\uae09'?'#dc2626':val==='\uc2e4\ube44'?'#059669':'#2563eb';
+          ansHtml += '<td style="padding:7px 10px;text-align:center;font-weight:700;color:'+color+';border-bottom:1px solid #fef9c3">'+val+'</td>';
+        }
+        ansHtml += '</tr>';
+      }
+      ansHtml += '</tbody></table>';
+      ansHtml += '<div style="margin-top:10px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:10px 12px;font-size:12px;color:#1e40af;line-height:1.7">';
+      ansHtml += '&#128663; <strong>\uc790\uae30\ucc28\ub7c9 \uc120\ud0dd \uc2dc \uc8fc\uc758!</strong> 1\uad6c\uac04\uc774\ub77c\ub3c4 \uc790\uae30\ucc28\ub7c9\uc744 \uc120\ud0dd\ud558\uba74 <strong>\ubaa8\ub4e0 \uad6c\uac04</strong>\uc774 \uc790\uae30\ucc28\ub7c9\uc73c\ub85c \uc120\ud0dd\ub3fc\uc694.<br>';
+      ansHtml += '\uc720\ub958\ube44\ub294 \uc624\ud53c\ub137 \ub2f9\uc77c \uae30\uc900\uc73c\ub85c \uc0b0\uc815\ub418\uace0, \ud1b5\ud589\ub8cc\ub294 \ud2f0\ub9f5 API \uc608\uc0c1\uae08\uc561(\ucc38\uace0\uc6a9)\uc744 \uae30\uc900\uc73c\ub85c \ud574\uc694.';
+      ansHtml += '</div>';
+    } else {
+      ansHtml = esc(item.answer).replace(/\n/g,'<br>');
+    }
+    var rem = item.remark ? '<div class="remark">\uD83D\uDCCE '+esc(item.remark)+'</div>' : '';
+    out += '<div class="ov-card" id="'+cardId+'">';
+    out += '<div class="ov-card-head" onclick="nyToggle(\''+cardId+'\')" style="cursor:pointer">';
+    out += '<span class="ov-cat" style="background:#fef9c3;color:#854d0e">'+esc(item.category)+'</span>';
+    if(item.item) out += '<span style="font-size:10px;color:var(--text3);flex-shrink:0;margin-right:4px">'+esc(item.item)+'</span>';
+    out += '<span class="ov-title">'+esc(item.question)+'</span>';
+    out += '<span style="margin-left:auto;font-size:12px;color:var(--text3);flex-shrink:0" class="ny-arrow-'+cardId+'">&#9660;</span>';
+    out += '</div>';
+    out += '<div class="ov-body ny-body-'+cardId+'" style="display:none">'+ansHtml+rem+'</div>';
+    out += '</div>';
+  }
+  if(!out) out = '<p style="padding:40px;text-align:center;color:var(--text2)">\uAC80\uC0C9 \uACB0\uACFC\uAC00 \uC5C6\uC2B5\uB2C8\uB2E4.</p>';
+  document.getElementById('ny-body').innerHTML = out;
+  // 검색어 있으면 전체 펼치기
+  if(nkw) {
+    var cards = document.querySelectorAll('#ny-body .ov-card');
+    cards.forEach(function(c){ var b = c.querySelector('[class^="ov-body"]'); if(b) b.style.display='block'; });
+  }
+}
+
+function nyToggle(cardId) {
+  var body = document.querySelector('.ny-body-'+cardId);
+  var arrow = document.querySelector('.ny-arrow-'+cardId);
+  if(!body) return;
+  var open = body.style.display !== 'none';
+  body.style.display = open ? 'none' : 'block';
+  if(arrow) arrow.innerHTML = open ? '&#9660;' : '&#9650;';
+}
+
+
+
+// ── 해외출장 렌더 ─────────────────────────────────────────────
+function renderOverseas() {
+  var kw = (document.getElementById('ov-search')||{}).value||'';
+  var nkw = norm(kw);
+  var items = allItems.filter(function(x){ return x.source==='해외출장을위한이동'; });
+  if(nkw) items = items.filter(function(x){
+    return norm(x.question).indexOf(nkw)>=0||norm(x.answer).indexOf(nkw)>=0||norm(x.category).indexOf(nkw)>=0;
+  });
+  var out = '';
+  for(var ii=0; ii<items.length; ii++) {
+    var item = items[ii];
+    var ans = esc(item.answer).replace(/\n/g,'<br>');
+    out += '<div class="ov-card">';
+    out += '<div class="ov-card-head">';
+    out += '<span class="ov-cat">'+esc(item.category)+'</span>';
+    out += '<span class="ov-title">'+esc(item.question)+'</span>';
+    out += '</div>';
+    out += '<div class="ov-body">'+ans+'</div>';
+    if(item.img1) {
+      var cap1 = esc(item.img1_caption||'');
+      out += '<div class="ref-imgs">';
+      out += '<div style="font-size:11px;color:var(--accent2);font-weight:700;margin-bottom:4px">\uD83D\uDDBC\uFE0F \uCC38\uACE0 \uC774\uBBF8\uC9C0 (\uD074\uB9AD\uD558\uBA74 \uD655\uB300)</div>';
+      out += '<div class="ref-thumb ov-thumb" data-cap="'+cap1+'">';
+      out += '<img src="data:image/png;base64,'+item.img1+'" alt="'+cap1+'">';
+      out += '<div class="ref-thumb-label">'+cap1+'</div></div>';
+      if(item.img2) {
+        var cap2 = esc(item.img2_caption||'');
+        out += '<div class="ref-thumb ov-thumb" data-cap="'+cap2+'">';
+        out += '<img src="data:image/png;base64,'+item.img2+'" alt="'+cap2+'">';
+        out += '<div class="ref-thumb-label">'+cap2+'</div></div>';
+      }
+      out += '</div>';
+    }
+    out += '</div>';
+  }
+  if(!out) out = '<p style="padding:40px;text-align:center;color:var(--text2)">검색 결과가 없습니다.</p>';
+  document.getElementById('ov-body').innerHTML = out;
+  // 썸네일 onclick 이벤트 위임 (data-src 방식으로 싱글쿼트 충돌 회피)
+  document.querySelectorAll('.ov-thumb').forEach(function(el) {
+    el.onclick = function() {
+      var img = this.querySelector('img');
+      var cap = this.getAttribute('data-cap')||'';
+      if(img) openImgModal(img.src, cap);
+    };
+  });
+}
+
+
+async function init() {
+  try {
+    var result = await loadFromFirestore();
+    var manCnt = result.manCnt;
+    var qaDocs = result.qaDocs;
+    var qaCnt = 0;
+    for (var i = 0; i < qaDocs.length; i++) {
+      if (qaDocs[i].s === "트리플러스" || qaDocs[i].s === "오큐파이") qaCnt++;
+    }
+    document.getElementById("cntManual").textContent = manCnt;
+    document.getElementById("cntQA").textContent = qaCnt;
+    renderOverseas();
+    renderNanyang();
+    document.getElementById("jf-search").addEventListener("input", renderJungbig);
+    document.getElementById("sk-search").addEventListener("input", renderSukbak);
+    document.getElementById("yw-search").addEventListener("input", renderYowei);
+    document.getElementById("gt-search").addEventListener("input", renderGita);
+    buildJfFilters();
+    buildYwFilters();
+    renderJungbig();
+    renderSukbak();
+    renderYowei();
+    renderGita();
+    document.getElementById("initLoading").style.display = "none";
+    document.getElementById("welcome").style.display = "block";
+  } catch(e) {
+    document.getElementById("initLoading").textContent = "데이터 로딩 실패. 새로고침 해주세요.";
+    console.error(e);
+  }
+}
+
+
+function gotoPage(name) {
+  var pages = document.querySelectorAll(".page");
+  for (var i = 0; i < pages.length; i++) pages[i].classList.remove("active");
+  var tabs = document.querySelectorAll(".nav-tab");
+  for (var i = 0; i < tabs.length; i++) tabs[i].classList.remove("active");
+  document.getElementById("page-" + name).classList.add("active");
+  document.getElementById("ntab-" + name).classList.add("active");
+  if (name === "jungbig") renderJungbig();
+  if (name === "sukbak")  renderSukbak();
+  if (name === "yowei")   renderYowei();
+  if (name === "gita")    renderGita();
+  if (name === "overseas") renderOverseas();
+  if (name === "nanyang")  renderNanyang();
+}
+window.gotoPage = gotoPage;
+
+function esc(s) {
+  return (s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+}
+function norm(s) { return (s||"").toLowerCase().replace(/\s+/g," ").trim(); }
+function tokenize(s) {
+  var n = norm(s);
+  var toks = n.split(/[\s,._\-\/|()]+/).filter(function(t){return t.length>=1;});
+  var bg = [];
+  for (var i = 0; i < toks.length-1; i++) bg.push(toks[i]+toks[i+1]);
+  var all = toks.concat(bg);
+  var seen = {};
+  return all.filter(function(v){ if(seen[v]) return false; seen[v]=1; return true; });
+}
+function hlOne(text, kw) {
+  if (!kw || !text) return esc(text||"");
+  var e = esc(text);
+  var kl = kw.toLowerCase();
+  var el = e.toLowerCase();
+  var out = ""; var i = 0;
+  while (i < e.length) {
+    var p = el.indexOf(kl, i);
+    if (p === -1) { out += e.slice(i); break; }
+    out += e.slice(i,p) + "<mark>" + e.slice(p, p+kw.length) + "</mark>";
+    i = p + kw.length;
+  }
+  return out;
+}
+function hlTerms(text, terms) {
+  if (!text || !terms.length) return esc(text);
+  var r = esc(text);
+  var sorted = terms.slice().sort(function(a,b){return b.length-a.length;});
+  for (var ti = 0; ti < sorted.length; ti++) {
+    var t = sorted[ti]; if (t.length<2) continue;
+    var out=""; var rl=r.toLowerCase(); var tl=t.toLowerCase(); var i=0;
+    while (i<r.length) {
+      var p=rl.indexOf(tl,i);
+      if(p===-1){out+=r.slice(i);break;}
+      out+=r.slice(i,p)+"<mark>"+r.slice(p,p+t.length)+"</mark>";
+      i=p+t.length;
+    }
+    r=out;
+  }
+  return r;
+}
+function scoreItem(item, tokens, qn) {
+  var fields=[{t:item.question,w:3},{t:item.answer,w:2},{t:item.category,w:1.5},{t:item.item,w:1.5},{t:item.source,w:1}];
+  var s=0,matched=0;
+  for(var fi=0;fi<fields.length;fi++){
+    var n=norm(fields[fi].t); var w=fields[fi].w;
+    if(n.indexOf(qn)>=0) s+=w*5;
+    for(var ti=0;ti<tokens.length;ti++){
+      var tok=tokens[ti]; if(tok.length<1) continue;
+      if(n.indexOf(tok)>=0){s+=w*(tok.length>=3?2:1);matched++;}
+    }
+  }
+  var cov=tokens.length>0?matched/tokens.length:0;
+  // 설치오류 관련 항목 보너스
+  var qFull = norm(item.question||'');
+  if(qFull.indexOf('설치')>=0 && qFull.indexOf('오류')>=0 && qn.indexOf('하이패스')>=0) s *= 2.5;
+  if(qFull.indexOf('모듈')>=0 && qFull.indexOf('설치')>=0) s *= 1.5;
+  return s*(0.5+cov*0.5);
+}
+var tagMap = {
+  "출장정책":["t-manual","매뉴얼"],"운영정책":["t-manual","매뉴얼"],"남양연구소":["t-manual","남양"],
+  "트리플러스":["t-triplus","트리플러스"],"오큐파이":["t-occupi","오큐파이"],
+  "해외출장을위한이동":["t-overseas","해외출장"],"증빙규정":["t-jungbig","증빙규정"],
+  "숙박비규정":["t-sukbak","숙박비"],"예외거리허용구간":["t-route","예외구간"],"기타교통수단구간":["t-transit","기타교통"]
+};
+function makeTag(source) {
+  var info = tagMap[source] || ["t-triplus", esc(source)];
+  return "<span class=\"tag "+info[0]+"\">"+info[1]+"</span>";
+}
+
+function setFilter(val, btn) {
+  activeFilter = val;
+  var btns = document.querySelectorAll(".filter-btn");
+  for (var i=0;i<btns.length;i++) btns[i].classList.remove("active");
+  btn.classList.add("active");
+}
+window.setFilter = setFilter;
+
+function quickSearch(q) {
+  document.getElementById("searchInput").value = q;
+  doSearch();
+}
+window.quickSearch = quickSearch;
+
+function toggleCard(idx) {
+  var card=document.getElementById("card-"+idx);
+  var ans=document.getElementById("ans-"+idx);
+  var qel=document.getElementById("cq-"+idx);
+  if(!card||!ans) return;
+  var isOpen=card.classList.contains("open");
+  card.classList.toggle("open",!isOpen);
+  ans.classList.toggle("open",!isOpen);
+  if(qel) qel.classList.toggle("open",!isOpen);
+  card.querySelector(".arrow").textContent = isOpen ? "\u25bc" : "\u25b2";
+}
+
+function copyAns(idx, e) {
+  e.stopPropagation();
+  var el = document.getElementById('ans-'+idx);
+  if(!el) return;
+  var textEl = el.querySelector('.ans-text');
+  var text = textEl ? textEl.innerText || textEl.textContent : el.innerText || el.textContent;
+  var btn = e.currentTarget || e.target;
+  function showDone() {
+    btn.textContent = '\u2705 복사됨';
+    btn.style.background = '#059669'; btn.style.color = '#fff';
+    setTimeout(function(){ btn.textContent = '\uD83D\uDCCB 복사'; btn.style.background=''; btn.style.color=''; }, 1800);
+  }
+  if(navigator.clipboard) {
+    navigator.clipboard.writeText(text).then(showDone).catch(function(){
+      var ta=document.createElement('textarea'); ta.value=text;
+      document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta);
+      showDone();
+    });
+  } else {
+    var ta=document.createElement('textarea'); ta.value=text;
+    document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta);
+    showDone();
+  }
+}
+window.toggleCard = toggleCard;
+  window.copyAns = copyAns;
+
+async function doSearch() {
+  var query = document.getElementById("searchInput").value.trim();
+  if (!query || allItems.length===0) return;
+  var btn = document.getElementById("searchBtn");
+  btn.disabled=true; btn.textContent="검색 중...";
+  document.getElementById("welcome").style.display="none";
+  document.getElementById("noResults").style.display="none";
+  document.getElementById("results").innerHTML="";
+  document.getElementById("resHdr").style.display="none";
+  var aiBox=document.getElementById("aiBox"); var aiText=document.getElementById("aiText");
+  aiBox.classList.add("on");
+  aiText.innerHTML="<div class=\"ai-loading\"><div class=\"spinner\"></div>AI가 분석 중입니다...</div>";
+  var qn=norm(query); var tokens=tokenize(query);
+  var scored=[];
+  for(var i=0;i<allItems.length;i++){
+    var item=allItems[i];
+    if(item.xs) continue;
+    if(activeFilter!=="all"&&item.source!==activeFilter) continue;
+    var sc=scoreItem(item,tokens,qn);
+    if(sc>0) scored.push({item:item,idx:i,sc:sc});
+  }
+  scored.sort(function(a,b){return b.sc-a.sc;});
+  var maxSc=scored.length>0?scored[0].sc:1;
+  var top=scored.slice(0,20);
+  var ctx=scored.slice(0,6).map(function(x,i){
+    return "["+(i+1)+"] 출처:"+x.item.source+"\nQ:"+x.item.question.slice(0,250)+"\nA:"+x.item.answer.slice(0,350);
+  }).join("\n\n");
+  try {
+    var resp=await fetch("https://api.anthropic.com/v1/messages",{
+      method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:1000,
+        system:"당신은 현대자동차 출장관리 전문 상담원입니다. 제공된 데이터 기반으로 한국어로 200자 이내 핵심만 간결하게 답변하세요.",
+        messages:[{role:"user",content:"질문: \""+query+"\"\n\n관련 데이터:\n"+(ctx||"없음")+"\n\n답변해주세요."}]})
+    });
+    var data=await resp.json();
+    aiText.textContent=(data.content&&data.content[0])?data.content[0].text:"답변을 생성할 수 없습니다.";
+  } catch(e) { aiText.textContent="검색된 "+top.length+"건의 결과를 아래에서 확인하세요."; }
+  btn.disabled=false; btn.textContent="AI 검색";
+  if(top.length===0){document.getElementById("noResults").style.display="block";return;}
+  document.getElementById("resHdr").style.display="flex";
+  document.getElementById("resCnt").textContent=scored.length;
+  var container=document.getElementById("results");
+  var terms=tokens.filter(function(t){return t.length>=2;});
+  var html="";
+  for(var ri=0;ri<top.length;ri++){
+    var x=top[ri]; var item=x.item;
+    var pct=Math.round((x.sc/maxSc)*100);
+    var srcLabel=item.source+(item.category&&item.category!==item.source?" \u00b7 "+item.category:"");
+    var qHtml=hlTerms(item.question.slice(0,200),terms);
+    var aHtml=hlTerms(item.answer,terms);
+    html+="<div class=\"card\" id=\"card-"+x.idx+"\" onclick=\"toggleCard("+x.idx+")\">";
+    html+="<div class=\"card-top\"><div class=\"card-tags\">"+makeTag(item.source)+"</div>";
+    html+="<div class=\"card-body\"><div class=\"card-src\">"+esc(srcLabel)+"</div>";
+    html+="<div class=\"card-q\" id=\"cq-"+x.idx+"\">"+qHtml+"</div></div>";
+    html+="<div class=\"card-score\"><div class=\"sc-wrap\"><span class=\"sc-val\">"+pct+"%</span>";
+    html+="<div class=\"sc-bar\"><div class=\"sc-fill\" style=\"width:"+pct+"%\"></div></div></div>";
+    html+="<span class=\"arrow\">\u25bc</span></div></div>";
+    html+="<div class=\"card-ans\" id=\"ans-"+x.idx+"\">";
+    html+="<div class=\"ans-header\"><div class=\"ans-label\">\u2705 답변</div><button class=\"copy-btn\" onclick=\"copyAns(\u0027"+x.idx+"\u0027,event)\">\uD83D\uDCCB 복사</button></div>";
+    html+="<div class=\"ans-text\">"+aHtml+"</div>";
+    if(item.remark) html+="<div class=\"remark\">\uD83D\uDCCE "+esc(item.remark)+"</div>";
+    // 참고 이미지
+    // item 직접 이미지 (img1, img2)
+    if (item.img1 || item.img2) {
+      html += "<div class=\"ref-imgs\">";
+      html += "<div style=\"font-size:11px;color:var(--acc2);font-weight:700;width:100%;margin-bottom:4px\">\uD83D\uDDBC\uFE0F \uCC38\uACE0 \uC774\uBBF8\uC9C0 (\uD074\uB9AD\uD558\uBA74 \uD655\uB300)</div>";
+      if (item.img1) {
+        html += "<div class=\"ref-thumb\" onclick=\"openImgModal('data:image/png;base64,"+item.img1+"','"+esc(item.img1_caption)+"')\">";
+        html += "<img src=\"data:image/png;base64,"+item.img1+"\" alt=\""+esc(item.img1_caption)+"\">";
+        html += "<div class=\"ref-thumb-label\">"+esc(item.img1_caption)+"</div>";
+        html += "</div>";
+      }
+      if (item.img2) {
+        html += "<div class=\"ref-thumb\" onclick=\"openImgModal('data:image/png;base64,"+item.img2+"','"+esc(item.img2_caption)+"')\">";
+        html += "<img src=\"data:image/png;base64,"+item.img2+"\" alt=\""+esc(item.img2_caption)+"\">";
+        html += "<div class=\"ref-thumb-label\">"+esc(item.img2_caption)+"</div>";
+        html += "</div>";
+      }
+      html += "</div>";
+    }
+    var refKey = getRefImgKey(item);
+    if (refKey && REF_IMGS[refKey]) {
+      var rimgs = REF_IMGS[refKey];
+      html += "<div class=\"ref-imgs\">";
+      html += "<div style=\"font-size:11px;color:var(--acc2);font-weight:700;width:100%;margin-bottom:4px\">\uD83D\uDDBC\uFE0F \uCC38\uACE0 \uC774\uBBF8\uC9C0 (\uD074\uB9AD\uD558\uBA74 \uD655\uB300)</div>";
+      for (var ri2=0; ri2<rimgs.length; ri2++) {
+        html += "<div class=\"ref-thumb\" onclick=\"openImgModal('"+rimgs[ri2].b64+"','"+rimgs[ri2].label+"')\">";
+        html += "<img src=\""+rimgs[ri2].b64+"\" alt=\""+rimgs[ri2].label+"\">";
+        html += "<div class=\"ref-thumb-label\">"+rimgs[ri2].label+"</div>";
+        html += "</div>";
+      }
+      html += "</div>";
+    }
+    html+="</div></div>";
+  }
+  container.innerHTML=html;
+}
+window.doSearch = doSearch;
+window.openImgModal = openImgModal;
+window.closeImgModal = closeImgModal;
+  window.renderOverseas = renderOverseas;
+  window.renderNanyang = renderNanyang;
+  window.nyToggle = nyToggle;
+document.addEventListener("DOMContentLoaded", function() {
+  document.getElementById("searchInput").addEventListener("keydown", function(e){if(e.key==="Enter") doSearch();});
+});
+
+var jfFilter="all";
+function buildJfFilters() {
+  if(!TD) return;
+  var types=[]; var rows=TD["\uc99d\ube59\uaddc\uc815"]||[];
+  for(var i=0;i<rows.length;i++){if(types.indexOf(rows[i].type)===-1) types.push(rows[i].type);}
+  var html="<button class=\"cf active\" onclick=\"setJfFilter(this,'all')\">전체</button>";
+  for(var i=0;i<types.length;i++) html+="<button class=\"cf\" onclick=\"setJfFilter(this,'"+esc(types[i])+"')\">"+esc(types[i])+"</button>";
+  document.getElementById("jf-filters").innerHTML=html;
+}
+function setJfFilter(btn,val){
+  jfFilter=val;
+  var bs=document.querySelectorAll("#jf-filters .cf"); for(var i=0;i<bs.length;i++) bs[i].classList.remove("active");
+  btn.classList.add("active"); renderJungbig();
+}
+window.setJfFilter=setJfFilter;
+function renderJungbig(){
+  if(!TD || !TD["증빙규정"]) { document.getElementById("jf-body").innerHTML='<tr><td colspan="10" style="text-align:center;color:#94a3b8;padding:20px">데이터 로딩 중...</td></tr>'; return; }
+  var kw=(document.getElementById("jf-search").value||"").trim().toLowerCase();
+  var rows=(TD["\uc99d\ube59\uaddc\uc815"]||[]).slice();
+  if(jfFilter!=="all") rows=rows.filter(function(r){return r.type===jfFilter;});
+  if(kw) rows=rows.filter(function(r){return [r.type,r.cat,r["case"],r.content].some(function(v){return(v||"").toLowerCase().indexOf(kw)>=0;});});
+  document.getElementById("jf-count").innerHTML="총 <span>"+rows.length+"</span>건";
+  var html=rows.map(function(r){
+    return "<tr><td><span class=\"btype btype-"+esc(r.type)+"\">"+hlOne(r.type,kw)+"</span></td>"+
+      "<td>"+hlOne(r.cat,kw)+"</td>"+
+      "<td style=\"white-space:nowrap;min-width:140px\">"+hlOne(r["case"],kw)+"</td>"+
+      "<td style=\"max-width:420px\">"+hlOne(r.content,kw).replace(/\n/g,"<br>")+"</td></tr>";
+  }).join("");
+  document.getElementById("jf-body").innerHTML=html;
+}
+function renderSukbak(){
+  if(!TD || !TD["숙박비규정"]) { document.getElementById("sk-body").innerHTML='<tr><td colspan="10" style="text-align:center;color:#94a3b8;padding:20px">데이터 로딩 중...</td></tr>'; return; }
+  var kw=(document.getElementById("sk-search").value||"").trim().toLowerCase();
+  var rows=(TD["\uc219\ubc15\ube44\uaddc\uc815"]||[]).slice();
+  if(kw) rows=rows.filter(function(r){return[r.purpose,r.usergrp,r.pay_type,r.remark].some(function(v){return(v||"").toLowerCase().indexOf(kw)>=0;});});
+  document.getElementById("sk-count").innerHTML="총 <span>"+rows.length+"</span>건";
+  var html=rows.map(function(r){
+    return "<tr><td>"+hlOne(r.purpose,kw)+"</td>"+
+      "<td style=\"white-space:nowrap\">"+hlOne(r.usergrp,kw)+"</td>"+
+      "<td>"+hlOne(r.pay_type,kw)+"</td>"+
+      "<td class=\"amt\">"+esc(r.amount)+"</td>"+
+      "<td>"+esc(r.option)+"</td>"+
+      "<td style=\"color:var(--text3);font-size:12px\">"+hlOne(r.remark,kw)+"</td></tr>";
+  }).join("");
+  document.getElementById("sk-body").innerHTML=html;
+}
+var ywFilter="all";
+function buildYwFilters(){
+  document.getElementById("yw-filters").innerHTML=
+    "<button class=\"cf active\" onclick=\"setYwFilter(this,'all')\">전체</button>"+
+    "<button class=\"cf\" onclick=\"setYwFilter(this,'active')\">&#9989; 사용중</button>"+
+    "<button class=\"cf\" onclick=\"setYwFilter(this,'inactive')\">&#9208; 미사용</button>";
+}
+function setYwFilter(btn,val){
+  ywFilter=val;
+  var bs=document.querySelectorAll("#yw-filters .cf"); for(var i=0;i<bs.length;i++) bs[i].classList.remove("active");
+  btn.classList.add("active"); renderYowei();
+}
+window.setYwFilter=setYwFilter;
+function renderYowei(){
+  if(!TD || !TD["예외거리허용구간"]) { document.getElementById("yw-body").innerHTML='<tr><td colspan="10" style="text-align:center;color:#94a3b8;padding:20px">데이터 로딩 중...</td></tr>'; return; }
+  var kw=(document.getElementById("yw-search").value||"").trim().toLowerCase();
+  var rows=(TD["\uc608\uc678\uac70\ub9ac\ud5c8\uc6a9\uad6c\uac04"]||[]).slice();
+  if(ywFilter==="active") rows=rows.filter(function(r){return r.status==="\uc0ac\uc6a9";});
+  if(ywFilter==="inactive") rows=rows.filter(function(r){return r.status!=="\uc0ac\uc6a9";});
+  if(kw) rows=rows.filter(function(r){return[r.from,r.to,r.type].some(function(v){return(v||"").toLowerCase().indexOf(kw)>=0;});});
+  document.getElementById("yw-count").innerHTML="총 <span>"+rows.length+"</span>건";
+  var html=rows.map(function(r){
+    return "<tr><td>"+hlOne(r.from,kw)+"</td><td>"+hlOne(r.to,kw)+"</td><td>"+esc(r.type)+"</td>"+
+      "<td class=\""+(r.status==="\uc0ac\uc6a9"?"s-on":"s-off")+"\">"+esc(r.status)+"</td></tr>";
+  }).join("");
+  document.getElementById("yw-body").innerHTML=html;
+}
+function renderGita(){
+  if(!TD || !TD["기타교통수단구간"]) { document.getElementById("gt-body").innerHTML='<tr><td colspan="10" style="text-align:center;color:#94a3b8;padding:20px">데이터 로딩 중...</td></tr>'; return; }
+  var kw=(document.getElementById("gt-search").value||"").trim().toLowerCase();
+  var rows=(TD["\uae30\ud0c0\uad50\ud1b5\uc218\ub2e8\uad6c\uac04"]||[]).slice();
+  if(kw) rows=rows.filter(function(r){return[r.from,r.to,r.amount].some(function(v){return(v||"").toLowerCase().indexOf(kw)>=0;});});
+  document.getElementById("gt-count").innerHTML="총 <span>"+rows.length+"</span>건";
+  var html=rows.map(function(r){
+    return "<tr><td>"+hlOne(r.from,kw)+"</td><td>"+hlOne(r.to,kw)+"</td><td class=\"amt\">"+esc(r.amount)+"</td></tr>";
+  }).join("");
+  document.getElementById("gt-body").innerHTML=html;
+}
+
+init();
+
+
+</script>
+
+<!-- 이미지 모달 -->
+<div class="img-modal" id="imgModal" onclick="closeImgModal(event)">
+  <div class="img-modal-close" onclick="document.getElementById('imgModal').classList.remove('open')">✕</div>
+  <img id="imgModalSrc" src="" alt="">
+  <div class="img-modal-caption" id="imgModalCaption"></div>
+</div>
+
+<!-- 시내교통비 신청 매뉴얼 스타일 -->
+<style>
+.sinai-manual {
+  overflow-y: auto;
+  max-height: calc(100vh - 120px);
+  padding: 0;
+}
+
+  .sinai-manual {
+    --primary: #003087;
+    --accent: #00AAD2;
+    --accent2: #E8F4FD;
+    --dark: #0A0E1A;
+    --mid: #1E2A3A;
+    --text: #1a1a2e;
+    --muted: #6B7A99;
+    --light: #F4F7FF;
+    --white: #ffffff;
+    --success: #00875A;
+    --danger: #D93025;
+    --warning: #F59E0B;
+    --border: #DDE3F0;
+  }
+
+  
+
+  .sinai-manual {
+    font-family: 'Noto Sans KR', sans-serif;
+    background: var(--light);
+    color: var(--text);
+    line-height: 1.7;
+  }
+
+  /* HEADER */
+  .hero {
+    background: linear-gradient(135deg, var(--dark) 0%, var(--mid) 50%, #1a3a5c 100%);
+    color: white;
+    padding: 60px 40px 50px;
+    position: relative;
+    overflow: hidden;
+  }
+  .hero::before {
+    content: '';
+    position: absolute;
+    top: -60px; right: -60px;
+    width: 300px; height: 300px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(0,170,210,0.2) 0%, transparent 70%);
+  }
+  .hero::after {
+    content: '';
+    position: absolute;
+    bottom: -40px; left: 10%;
+    width: 200px; height: 200px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(0,48,135,0.4) 0%, transparent 70%);
+  }
+  .hero-inner {
+    max-width: 900px;
+    margin: 0 auto;
+    position: relative;
+    z-index: 1;
+  }
+  .hero-badge {
+    display: inline-block;
+    background: rgba(0,170,210,0.2);
+    border: 1px solid rgba(0,170,210,0.5);
+    color: var(--accent);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    padding: 5px 14px;
+    border-radius: 20px;
+    margin-bottom: 18px;
+  }
+  .hero h1 {
+    font-size: 36px;
+    font-weight: 900;
+    letter-spacing: -1px;
+    line-height: 1.2;
+    margin-bottom: 12px;
+  }
+  .hero h1 span { color: var(--accent); }
+  .hero-sub {
+    font-size: 15px;
+    color: rgba(255,255,255,0.6);
+    font-weight: 300;
+  }
+  .hero-meta {
+    display: flex;
+    gap: 24px;
+    margin-top: 28px;
+    flex-wrap: wrap;
+  }
+  .hero-meta-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: rgba(255,255,255,0.5);
+  }
+  .hero-meta-item strong { color: rgba(255,255,255,0.85); }
+
+  /* NAV */
+  .toc-bar {
+    background: var(--white);
+    border-bottom: 2px solid var(--border);
+    padding: 0 40px;
+    position:relative;
+    top: 0;
+    
+    box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+  }
+  .toc-inner {
+    max-width: 900px;
+    margin: 0 auto;
+    display: flex;
+    gap: 4px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .toc-inner::-webkit-scrollbar { display: none; }
+  .toc-item {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 16px 14px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--muted);
+    white-space: nowrap;
+    text-decoration: none;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -2px;
+    transition: all 0.2s;
+  }
+  .toc-item:hover { color: var(--primary); border-color: var(--accent); }
+  .toc-item .toc-num {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    background: var(--light);
+    padding: 2px 6px;
+    border-radius: 4px;
+  }
+
+  /* MAIN */
+  .main {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 40px 40px 80px;
+  }
+
+  /* SECTION */
+  .section {
+    margin-bottom: 48px;
+    animation: fadeUp 0.4s ease both;
+  }
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .section-header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 20px;
+    padding-bottom: 14px;
+    border-bottom: 2px solid var(--border);
+  }
+  .section-num {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--accent);
+    background: var(--accent2);
+    padding: 4px 10px;
+    border-radius: 6px;
+    letter-spacing: 1px;
+  }
+  .section-title {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--primary);
+  }
+  .section-icon {
+    font-size: 22px;
+    margin-left: auto;
+  }
+
+  /* CARD GRID */
+  .card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 14px;
+    margin-bottom: 16px;
+  }
+  .card {
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 20px;
+    position: relative;
+    transition: all 0.2s;
+  }
+  .card:hover {
+    border-color: var(--accent);
+    box-shadow: 0 4px 20px rgba(0,170,210,0.12);
+    transform: translateY(-2px);
+  }
+  .card-icon { font-size: 28px; margin-bottom: 10px; }
+  .card-label {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--muted);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+  .card-value {
+    font-size: 17px;
+    font-weight: 700;
+    color: var(--primary);
+  }
+  .card-desc {
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 6px;
+    line-height: 1.5;
+  }
+
+  /* INFO BOX */
+  .info-box {
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 24px 28px;
+    margin-bottom: 14px;
+  }
+  .info-box.accent { border-left: 4px solid var(--accent); }
+  .info-box.primary { border-left: 4px solid var(--primary); }
+  .info-box.warning { border-left: 4px solid var(--warning); background: #FFFBF0; }
+  .info-box.danger { border-left: 4px solid var(--danger); background: #FFF5F5; }
+  .info-box.success { border-left: 4px solid var(--success); background: #F0FAF5; }
+
+  /* BADGE */
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 10px;
+    border-radius: 20px;
+  }
+  .badge.yes { background: #E6F9F0; color: var(--success); }
+  .badge.no { background: #FDECEA; color: var(--danger); }
+  .badge.cond { background: #FFF8E6; color: #B45309; }
+
+  /* TABLE */
+  .table-wrap {
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    overflow: hidden;
+    margin-bottom: 14px;
+  }
+  table { width: 100%; border-collapse: collapse; }
+  th {
+    background: var(--primary);
+    color: white;
+    font-size: 13px;
+    font-weight: 600;
+    padding: 13px 18px;
+    text-align: left;
+  }
+  td {
+    font-size: 13px;
+    padding: 12px 18px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: middle;
+  }
+  tr:last-child td { border-bottom: none; }
+  tr:nth-child(even) td { background: #FAFBFF; }
+  tr:hover td { background: var(--accent2); }
+
+  /* STEP */
+  .steps { display: flex; flex-direction: column; gap: 0; }
+  .step {
+    display: flex;
+    gap: 20px;
+    position: relative;
+  }
+  .step:not(:last-child)::before {
+    content: '';
+    position: absolute;
+    left: 20px;
+    top: 44px;
+    bottom: 0;
+    width: 2px;
+    background: var(--border);
+  }
+  .step-num {
+    flex-shrink: 0;
+    width: 40px;
+    height: 40px;
+    background: var(--primary);
+    color: white;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 14px;
+    font-weight: 600;
+    position: relative;
+    z-index: 1;
+  }
+  .step-.sinai-manual {
+    flex: 1;
+    padding-bottom: 28px;
+  }
+  .step-title {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--primary);
+    margin-bottom: 6px;
+    padding-top: 8px;
+  }
+  .step-desc {
+    font-size: 13px;
+    color: var(--muted);
+    line-height: 1.6;
+  }
+  .step-tag {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 4px;
+    margin-top: 6px;
+  }
+  .step-tag.blue { background: var(--accent2); color: var(--primary); }
+  .step-tag.gray { background: var(--light); color: var(--muted); }
+
+  /* LIST */
+  .check-list { list-style: none; display: flex; flex-direction: column; gap: 10px; }
+  .check-list li {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    font-size: 14px;
+    line-height: 1.6;
+  }
+  .check-list li::before {
+    content: '✓';
+    flex-shrink: 0;
+    width: 22px;
+    height: 22px;
+    background: var(--primary);
+    color: white;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 700;
+    margin-top: 1px;
+  }
+  .x-list li::before {
+    content: '✗';
+    background: var(--danger) !important;
+  }
+
+  /* TAG ROW */
+  .tag-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 8px;
+  }
+  .tag {
+    font-size: 13px;
+    font-weight: 600;
+    padding: 6px 14px;
+    border-radius: 8px;
+    background: var(--accent2);
+    color: var(--primary);
+    border: 1px solid rgba(0,170,210,0.3);
+  }
+
+  /* QA */
+  .qa-list { display: flex; flex-direction: column; gap: 12px; }
+  .qa-item {
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    overflow: hidden;
+    transition: all 0.2s;
+  }
+  .qa-item:hover { border-color: var(--accent); }
+  .qa-q {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 18px 22px;
+    cursor: pointer;
+    user-select: none;
+  }
+  .qa-q-mark {
+    flex-shrink: 0;
+    width: 26px;
+    height: 26px;
+    background: var(--primary);
+    color: white;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 13px;
+    font-weight: 700;
+    margin-top: 1px;
+  }
+  .qa-q-text {
+    flex: 1;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+    line-height: 1.5;
+  }
+  .qa-arrow {
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 5px;
+    transition: transform 0.2s;
+  }
+  .qa-item.open .qa-arrow { transform: rotate(180deg); }
+  .qa-a {
+    display: none;
+    padding: 0 22px 18px 60px;
+    font-size: 13px;
+    color: var(--muted);
+    line-height: 1.7;
+    border-top: 1px solid var(--border);
+    padding-top: 16px;
+  }
+  .qa-a-mark {
+    display: inline-block;
+    font-weight: 700;
+    color: var(--accent);
+    margin-right: 4px;
+  }
+  .qa-item.open .qa-a { display: block; }
+
+  /* HIGHLIGHT */
+  .highlight {
+    background: linear-gradient(135deg, var(--primary) 0%, #005580 100%);
+    color: white;
+    border-radius: 16px;
+    padding: 28px;
+    margin-bottom: 14px;
+  }
+  .highlight h3 { font-size: 16px; font-weight: 700; margin-bottom: 12px; opacity: 0.9; }
+  .highlight-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 12px;
+  }
+  .highlight-item {
+    background: rgba(255,255,255,0.1);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 10px;
+    padding: 14px 16px;
+    text-align: center;
+  }
+  .highlight-item .val {
+    font-size: 24px;
+    font-weight: 900;
+    color: var(--accent);
+    display: block;
+    font-family: 'IBM Plex Mono', monospace;
+  }
+  .highlight-item .lbl {
+    font-size: 12px;
+    opacity: 0.7;
+    margin-top: 4px;
+  }
+
+  /* NOTICE */
+  .notice {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    background: #FFFBF0;
+    border: 1px solid #FDE68A;
+    border-radius: 10px;
+    padding: 14px 18px;
+    font-size: 13px;
+    color: #78350F;
+    margin-top: 12px;
+  }
+  .notice-icon { font-size: 18px; flex-shrink: 0; }
+
+  /* FOOTER */
+  .footer {
+    background: var(--dark);
+    color: rgba(255,255,255,0.4);
+    text-align: center;
+    padding: 30px;
+    font-size: 12px;
+    letter-spacing: 0.5px;
+  }
+  .footer strong { color: rgba(255,255,255,0.7); }
+
+  /* RESPONSIVE */
+  @media (max-width: 600px) {
+    .hero { padding: 40px 20px 36px; }
+    .hero h1 { font-size: 26px; }
+    .toc-bar { padding: 0 16px; }
+    .main { padding: 24px 16px 60px; }
+    th, td { padding: 10px 12px; }
+  }
+
+/* ── 관리자 모드 ── */
+.admin-bar {
+  display: flex; align-items: center; gap: 10px;
+  background: #fff8ed; border: 1px solid #fcd34d;
+  border-radius: 10px; padding: 10px 16px; margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+.admin-bar-label { font-size: 12px; color: #92400e; font-weight: 700; }
+.admin-toggle {
+  margin-left: auto; background: #f59e0b; color: #fff;
+  border: none; border-radius: 8px; padding: 6px 14px;
+  font-size: 12px; font-weight: 700; cursor: pointer;
+  font-family: 'Noto Sans KR', sans-serif; transition: background .2s;
+}
+.admin-toggle:hover { background: #d97706; }
+.admin-toggle.on { background: #059669; }
+.admin-toggle.on:hover { background: #047857; }
+.btn-add-row {
+  background: #2563eb; color: #fff; border: none; border-radius: 8px;
+  padding: 6px 14px; font-size: 12px; font-weight: 700; cursor: pointer;
+  font-family: 'Noto Sans KR', sans-serif; transition: background .2s; display: none;
+}
+.btn-add-row:hover { background: #1d4ed8; }
+.admin-mode .btn-add-row { display: inline-flex; align-items: center; gap: 4px; }
+/* 행 편집 버튼 */
+.row-actions { display: none; white-space: nowrap; }
+.admin
+
+</style>
+
+<div id="page-sinai" class="page">
+<div class="sinai-manual">
+
+
+<!-- HERO -->
+<div class="hero">
+  <div class="hero-inner">
+    <div class="hero-badge">HYUNDAI MOTOR · BZP 출장관리</div>
+    <h1>시내교통비<br><span>신청 매뉴얼</span></h1>
+
+  </div>
+</div>
+
+<!-- TOC -->
+<div class="toc-bar">
+  <div class="toc-inner">
+    <a class="toc-item" href="#sec1"><span class="toc-num">01</span> 개요</a>
+    <a class="toc-item" href="#sec2"><span class="toc-num">02</span> 이용대상</a>
+    <a class="toc-item" href="#sec3"><span class="toc-num">03</span> 신청방법</a>
+    <a class="toc-item" href="#sec4"><span class="toc-num">04</span> 출장규정</a>
+    <a class="toc-item" href="#sec5"><span class="toc-num">05</span> 교통수단</a>
+    <a class="toc-item" href="#sec6"><span class="toc-num">06</span> 지급기준</a>
+    <a class="toc-item" href="#sec7"><span class="toc-num">07</span> FAQ</a>
+  </div>
+</div>
+
+<div class="main">
+
+  <!-- 01 개요 -->
+  <div class="section" id="sec1">
+    <div class="section-header">
+      <span class="section-num">01</span>
+      <span class="section-title">개요 및 사용 목적</span>
+      <span class="section-icon">📋</span>
+    </div>
+
+    <div class="highlight">
+      <h3>🎯 이 시스템은 무엇인가요?</h3>
+      <div class="highlight-grid">
+        <div class="highlight-item">
+          <span class="val">50km</span>
+          <div class="lbl">이하 근거리 출장 커버</div>
+        </div>
+        <div class="highlight-item">
+          <span class="val">PC</span>
+          <div class="lbl">오토웨이 시스템 전용</div>
+        </div>
+        <div class="highlight-item">
+          <span class="val">1일</span>
+          <div class="lbl">단위 신청</div>
+        </div>
+        <div class="highlight-item">
+          <span class="val">90일</span>
+          <div class="lbl">이내 소급 신청 가능</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="info-box accent">
+      <p style="font-size:14px; color:var(--text); line-height:1.8;">
+        국내출장비 정산서에서 신청 불가한 <strong>50km 이하 구간의 근거리 출장</strong>을 커버하기 위한 별도 정산 시스템입니다.<br>
+        연구소 직원들이 근거리 출장 시 교통비를 지급받을 수 있도록 운영됩니다.
+      </p>
+    </div>
+
+    <div class="notice">
+      <span class="notice-icon">⚠️</span>
+      <span>모바일(MO 트리플러스 앱)에서는 동일 환경 제공이 불가합니다. <strong>반드시 PC에서 이용</strong>해주세요.</span>
+    </div>
+  </div>
+
+  <!-- 02 이용대상 -->
+  <div class="section" id="sec2">
+    <div class="section-header">
+      <span class="section-num">02</span>
+      <span class="section-title">이용 대상</span>
+      <span class="section-icon">👥</span>
+    </div>
+
+    <div class="card-grid">
+      <div class="card">
+        <div class="card-icon">🏭</div>
+        <div class="card-value">남양연구소</div>
+      </div>
+      <div class="card">
+        <div class="card-icon">🔬</div>
+        <div class="card-value">마북연구소</div>
+      </div>
+      <div class="card">
+        <div class="card-icon">⚙️</div>
+        <div class="card-value">의왕연구소</div>
+      </div>
+      <div class="card">
+        <div class="card-icon">💡</div>
+        <div class="card-value">판교연구소</div>
+      </div>
+      <div class="card">
+        <div class="card-icon">🏢</div>
+        <div class="card-value">강남대로 일부</div>
+      </div>
+    </div>
+
+    <div class="info-box primary">
+      <p style="font-size:14px; font-weight:600; color:var(--primary); margin-bottom:8px;">📝 대리작성 이용 시</p>
+      <p style="font-size:13px; color:var(--text);">권한관리 → 대리작성 권한관리에서 <strong>'나'가 작성할 수 있는 출장자</strong>로 등록되어야 합니다. (국내출장비와 동일 방식)</p>
+    </div>
+  </div>
+
+  <!-- 03 신청방법 -->
+  <div class="section" id="sec3">
+    <div class="section-header">
+      <span class="section-num">03</span>
+      <span class="section-title">신청 방법 및 메뉴</span>
+      <span class="section-icon">🖥️</span>
+    </div>
+
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-body">
+          <div class="step-title">오토웨이 시스템 접속</div>
+          <div class="step-desc">PC 브라우저에서 오토웨이 시스템에 접속합니다. 모바일은 지원하지 않습니다.</div>
+          <span class="step-tag blue">PC 전용</span>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-body">
+          <div class="step-title">시내교통비 신청 메뉴 선택</div>
+          <div class="step-desc">별도 생성된 <strong>시내교통비 신청</strong> 메뉴로 이동합니다. (링크로 제공)</div>
+          <span class="step-tag blue">본인작성 / 대리작성 동일 목록</span>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-body">
+          <div class="step-title">출장 정보 입력</div>
+          <div class="step-desc">출장일, 경로, 이동수단, 식비/잡비 등을 입력합니다. 필수값 미입력 시 임시저장 불가.</div>
+          <span class="step-tag gray">필수값 입력 필요</span>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">4</div>
+        <div class="step-body">
+          <div class="step-title">결재 요청</div>
+          <div class="step-desc">작성 완료 후 결재 요청. 결재는 <strong>그룹웨어</strong>에서 결재자가 처리합니다.</div>
+          <span class="step-tag blue">그룹웨어 연동</span>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">5</div>
+        <div class="step-body">
+          <div class="step-title">지급 처리</div>
+          <div class="step-desc">남양연구소 직원이 지급 검증 후 <strong>급여/경비 계좌</strong>로 입금 처리합니다.</div>
+          <span class="step-tag gray">남양연구소 담당자 검증</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="notice">
+      <span class="notice-icon">💡</span>
+      <span>관리자는 <strong>트리플러스 &gt; 시내교통비 관리</strong> 메뉴를 사용합니다. (신청목록 전체 / 정산현황 / 지급전표관리)</span>
+    </div>
+  </div>
+
+  <!-- 04 출장규정 -->
+  <div class="section" id="sec4">
+    <div class="section-header">
+      <span class="section-num">04</span>
+      <span class="section-title">출장 규정</span>
+      <span class="section-icon">📌</span>
+    </div>
+
+    <div class="card-grid" style="grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));">
+      <div class="card">
+        <div class="card-icon">📅</div>
+        <div class="card-label">출장 기간</div>
+        <div class="card-value" style="font-size:14px; margin-top:8px;">1일 단위 / 평일만</div>
+        <div class="card-desc">접속일 기준 90일 이내 선택 가능<br>임시저장·반려 문서는 이전 날짜도 가능 (단, 당해년도 이내)</div>
+      </div>
+      <div class="card">
+        <div class="card-icon">🗺️</div>
+        <div class="card-label">경로 설정</div>
+        <div class="card-value" style="font-size:14px; margin-top:8px;">근무지 자동 세팅</div>
+        <div class="card-desc">출발지·복귀지는 상세근무지 자동 설정<br>남양/마북/의왕/판교/강남대로만 선택 가능 (주소 입력 불가)</div>
+      </div>
+    </div>
+
+    <div class="info-box warning">
+      <p style="font-size:14px; font-weight:700; margin-bottom:10px;">🚫 중복 신청 불가 규정</p>
+      <ul class="check-list x-list">
+        <li>국내출장비 정산서와 동일한 날짜는 시내교통비 신청 불가</li>
+        <li>주말(토·일) 출장 신청 불가</li>
+        <li>출장비 합계가 0원인 경우 신청 불가</li>
+      </ul>
+    </div>
+
+    <div class="info-box primary">
+      <p style="font-size:14px; font-weight:700; color:var(--primary); margin-bottom:10px;">👔 직급별 O/D 지원금</p>
+      <div class="table-wrap" style="margin-bottom:0; border:none;">
+        <table>
+          <tr>
+            <th>직급</th>
+            <th>O/D 지원금 체크</th>
+            <th>적용 규정</th>
+          </tr>
+          <tr>
+            <td><strong>책임연구원 (4F)</strong></td>
+            <td><span class="badge yes">✓ 가능</span></td>
+            <td>G4 규정 대우</td>
+          </tr>
+          <tr>
+            <td>책임연구원 (4F) — 미체크</td>
+            <td><span class="badge cond">미체크</span></td>
+            <td>G1~G3 (일반 직원) 동일</td>
+          </tr>
+          <tr>
+            <td>4F 외 전 직급 (임원 포함)</td>
+            <td><span class="badge no">✗ 불가</span></td>
+            <td>해당 직급 규정 적용</td>
+          </tr>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- 05 교통수단 -->
+  <div class="section" id="sec5">
+    <div class="section-header">
+      <span class="section-num">05</span>
+      <span class="section-title">이동수단별 지급 기준</span>
+      <span class="section-icon">🚗</span>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>이동수단</th>
+            <th>교통비</th>
+            <th>유류비</th>
+            <th>통행료</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>🚌 시내교통</strong><br><span style="font-size:11px;color:var(--muted)">버스, 택시 등</span></td>
+            <td><span class="badge yes">✓ 실비</span></td>
+            <td><span class="badge no">✗ 미지급</span></td>
+            <td><span class="badge no">✗ 미지급</span></td>
+          </tr>
+          <tr>
+            <td><strong>🚙 자기차량</strong></td>
+            <td><span class="badge no">✗ 미지급</span></td>
+            <td><span class="badge yes">✓ 정액</span><br><span style="font-size:11px;color:var(--muted)">오피넷 당일 기준</span></td>
+            <td><span class="badge yes">✓ 실비</span><br><span style="font-size:11px;color:var(--muted)">증빙 필수</span></td>
+          </tr>
+          <tr>
+            <td><strong>🏢 업무용/시험차</strong></td>
+            <td><span class="badge no">✗ 미지급</span></td>
+            <td><span class="badge no">✗ 미지급</span></td>
+            <td><span class="badge no">✗ 미지급</span></td>
+          </tr>
+          <tr>
+            <td><strong>👥 동승자 차량</strong></td>
+            <td><span class="badge no">✗ 미지급</span></td>
+            <td><span class="badge no">✗ 미지급</span></td>
+            <td><span class="badge no">✗ 미지급</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="notice">
+      <span class="notice-icon">⚠️</span>
+      <span><strong>주의:</strong> 1구간이라도 자기차량을 선택하면 <strong>모든 구간이 자기차량으로 자동 적용</strong>됩니다.</span>
+    </div>
+
+    <div class="info-box warning" style="margin-top:14px;">
+      <p style="font-size:14px; font-weight:700; margin-bottom:10px;">📎 파일 첨부 정책</p>
+      <ul class="check-list">
+        <li><strong>통행료:</strong> 입력 시 <strong>무조건</strong> 증빙 파일 첨부 필요</li>
+        <li><strong>교통비:</strong> 신청금액이 예상 교통비(티맵 기준)를 <strong>초과하는 경우에만</strong> 첨부 필요</li>
+      </ul>
+      <div class="notice" style="margin-top:12px;">
+        <span class="notice-icon">💡</span>
+        <span>교통비 예상금액: 티맵 최적거리 기준 API 10개 응답값 중 <strong>최대거리(가장 비싼 금액)</strong>을 기준으로 산정</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 06 지급기준 -->
+  <div class="section" id="sec6">
+    <div class="section-header">
+      <span class="section-num">06</span>
+      <span class="section-title">항목별 지급 기준</span>
+      <span class="section-icon">💰</span>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>지급 항목</th>
+            <th>임원</th>
+            <th>G4 대우 (책임연구원 O/D 체크)</th>
+            <th>일반 직원 (G1~G3)</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>🚌 교통비</strong></td>
+            <td><span class="badge no">✗ 미지급</span></td>
+            <td><span class="badge no">✗ 미지급</span></td>
+            <td><span class="badge yes">✓ 실비</span></td>
+          </tr>
+          <tr>
+            <td><strong>⛽ 유류비</strong></td>
+            <td><span class="badge no">✗ 미지급</span></td>
+            <td><span class="badge no">✗ 미지급</span></td>
+            <td><span class="badge yes">✓ 정액</span></td>
+          </tr>
+          <tr>
+            <td><strong>🛣️ 통행료</strong></td>
+            <td><span class="badge yes">✓ 실비</span></td>
+            <td><span class="badge yes">✓ 실비</span></td>
+            <td><span class="badge yes">✓ 실비</span></td>
+          </tr>
+          <tr>
+            <td><strong>🍱 식비</strong></td>
+            <td><span class="badge yes">✓ 9,000원</span></td>
+            <td><span class="badge yes">✓ 9,000원</span></td>
+            <td><span class="badge yes">✓ 9,000원</span></td>
+          </tr>
+          <tr>
+            <td><strong>💼 잡비</strong></td>
+            <td><span class="badge no">✗ 미지급</span></td>
+            <td><span class="badge cond">조건부</span></td>
+            <td><span class="badge cond">조건부</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="info-box accent">
+      <p style="font-size:14px; font-weight:700; color:var(--primary); margin-bottom:10px;">💼 잡비 2,000원 지급 조건</p>
+      <div style="display:grid; grid-template-columns: 1fr 1fr; gap:16px;">
+        <div>
+          <p style="font-size:12px; font-weight:700; color:var(--muted); margin-bottom:6px;">G4 대우 (책임연구원)</p>
+          <ul class="check-list" style="font-size:13px;">
+            <li>업무용차/시험차 미선택 <strong>AND</strong> 식대 신청 시</li>
+          </ul>
+        </div>
+        <div>
+          <p style="font-size:12px; font-weight:700; color:var(--muted); margin-bottom:6px;">일반 직원 (G1~G3)</p>
+          <ul class="check-list" style="font-size:13px;">
+            <li>시내교통 선택 시</li>
+            <li>자기차량 선택 시</li>
+            <li>식대 신청 시</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="info-box success">
+      <p style="font-size:14px; font-weight:700; color:var(--success); margin-bottom:6px;">💳 지급 계좌</p>
+      <p style="font-size:13px; color:var(--text);">모든 지급은 <strong>급여/경비 계좌</strong>로 고정 처리됩니다. 별도 계좌 지정 불가.</p>
+    </div>
+  </div>
+
+  <!-- 07 FAQ -->
+  <div class="section" id="sec7">
+    <div class="section-header">
+      <span class="section-num">07</span>
+      <span class="section-title">자주 묻는 질문 (FAQ)</span>
+      <span class="section-icon">❓</span>
+    </div>
+
+    <div class="qa-list">
+
+      <div class="qa-item">
+        <div class="qa-q" onclick="toggleQA(this)">
+          <div class="qa-q-mark">Q</div>
+          <div class="qa-q-text">저는 신청 가능한 대상인가요?</div>
+          <div class="qa-arrow">▼</div>
+        </div>
+        <div class="qa-a"><span class="qa-a-mark">A</span> 남양 / 마북 / 의왕 / 판교 / 강남대로 근무자만 신청 가능합니다. 해당 근무지가 아닌 경우 신청이 불가합니다.</div>
+      </div>
+
+      <div class="qa-item">
+        <div class="qa-q" onclick="toggleQA(this)">
+          <div class="qa-q-mark">Q</div>
+          <div class="qa-q-text">출장을 2~3일 연속으로 신청할 수 있나요?</div>
+          <div class="qa-arrow">▼</div>
+        </div>
+        <div class="qa-a"><span class="qa-a-mark">A</span> 시내교통비는 <strong>1일 단위</strong>로만 신청 가능합니다. 날짜별로 각각 따로 신청해주세요.</div>
+      </div>
+
+      <div class="qa-item">
+        <div class="qa-q" onclick="toggleQA(this)">
+          <div class="qa-q-mark">Q</div>
+          <div class="qa-q-text">지난 달 출장을 지금 신청해도 되나요?</div>
+          <div class="qa-arrow">▼</div>
+        </div>
+        <div class="qa-a"><span class="qa-a-mark">A</span> 접속일 기준 <strong>90일 이내</strong>라면 소급 신청이 가능합니다. 90일이 초과된 출장은 신청이 불가합니다.</div>
+      </div>
+
+      <div class="qa-item">
+        <div class="qa-q" onclick="toggleQA(this)">
+          <div class="qa-q-mark">Q</div>
+          <div class="qa-q-text">국내출장비 정산서에 등록한 날짜도 신청 가능한가요?</div>
+          <div class="qa-arrow">▼</div>
+        </div>
+        <div class="qa-a"><span class="qa-a-mark">A</span> 불가합니다. 국내출장비 정산서와 <strong>동일한 날짜는 중복 신청이 불가</strong>합니다.</div>
+      </div>
+
+      <div class="qa-item">
+        <div class="qa-q" onclick="toggleQA(this)">
+          <div class="qa-q-mark">Q</div>
+          <div class="qa-q-text">출발지를 집 주소로 변경할 수 있나요?</div>
+          <div class="qa-arrow">▼</div>
+        </div>
+        <div class="qa-a"><span class="qa-a-mark">A</span> 불가합니다. 출발지와 복귀지는 <strong>상세근무지로 자동 설정</strong>되며, 남양/마북/의왕/판교/강남대로만 선택 가능합니다. 임의 주소 입력은 지원하지 않습니다. 단, 미복귀 체크 시 편도 신청은 가능합니다.</div>
+      </div>
+
+      <div class="qa-item">
+        <div class="qa-q" onclick="toggleQA(this)">
+          <div class="qa-q-mark">Q</div>
+          <div class="qa-q-text">택시비가 예상 금액보다 많이 나왔는데 전액 받을 수 있나요?</div>
+          <div class="qa-arrow">▼</div>
+        </div>
+        <div class="qa-a"><span class="qa-a-mark">A</span> 티맵 기준 예상 교통비 이내라면 전액 신청 가능합니다. <strong>예상 교통비를 초과하는 경우</strong>에는 영수증 등 증빙 파일을 첨부해야 합니다.</div>
+      </div>
+
+      <div class="qa-item">
+        <div class="qa-q" onclick="toggleQA(this)">
+          <div class="qa-q-mark">Q</div>
+          <div class="qa-q-text">1구간은 내 차, 나머지 구간은 대중교통으로 신청할 수 있나요?</div>
+          <div class="qa-arrow">▼</div>
+        </div>
+        <div class="qa-a"><span class="qa-a-mark">A</span> 불가합니다. <strong>1구간이라도 자기차량을 선택하면 모든 구간이 자기차량으로 적용</strong>됩니다. 교통비 대신 유류비 + 통행료만 받을 수 있습니다.</div>
+      </div>
+
+      <div class="qa-item">
+        <div class="qa-q" onclick="toggleQA(this)">
+          <div class="qa-q-mark">Q</div>
+          <div class="qa-q-text">O/D 지원금은 무엇이고, 누가 신청할 수 있나요?</div>
+          <div class="qa-arrow">▼</div>
+        </div>
+        <div class="qa-a"><span class="qa-a-mark">A</span> 책임연구원(직급코드 4F)에게만 제공되는 추가 지원금입니다. O/D 체크 시 <strong>G4 규정 대우</strong>를 받으며, 미체크 시에는 일반 직원(G1~G3)과 동일하게 처리됩니다. 임원을 포함한 4F 이외 직급은 O/D 지원금 신청이 불가합니다.</div>
+      </div>
+
+      <div class="qa-item">
+        <div class="qa-q" onclick="toggleQA(this)">
+          <div class="qa-q-mark">Q</div>
+          <div class="qa-q-text">임원인데 교통비/유류비를 못 받는다고 하던데 맞나요?</div>
+          <div class="qa-arrow">▼</div>
+        </div>
+        <div class="qa-a"><span class="qa-a-mark">A</span> 맞습니다. 임원 및 G4 대우 직원은 <strong>교통비, 유류비가 지급되지 않습니다.</strong> 다만 통행료(실비)와 식비(9,000원)는 동일하게 지급됩니다.</div>
+      </div>
+
+      <div class="qa-item">
+        <div class="qa-q" onclick="toggleQA(this)">
+          <div class="qa-q-mark">Q</div>
+          <div class="qa-q-text">규정 금액보다 초과해서 신청해도 결재 요청이 가능한가요?</div>
+          <div class="qa-arrow">▼</div>
+        </div>
+        <div class="qa-a"><span class="qa-a-mark">A</span> 가능합니다. 초과 금액이어도 결재 요청 자체는 가능합니다. 다만 <strong>관리자 화면에 초과 여부가 표시</strong>되며, 지급 여부는 담당자 검토 후 결정됩니다.</div>
+      </div>
+
+      <div class="qa-item">
+        <div class="qa-q" onclick="toggleQA(this)">
+          <div class="qa-q-mark">Q</div>
+          <div class="qa-q-text">교통비가 입금되는 계좌를 변경할 수 있나요?</div>
+          <div class="qa-arrow">▼</div>
+        </div>
+        <div class="qa-a"><span class="qa-a-mark">A</span> 불가합니다. 모든 지급은 <strong>급여/경비 계좌</strong>로 고정 처리됩니다. 별도 계좌 지정은 지원하지 않습니다.</div>
+      </div>
+
+    </div>
+  </div>
+
+</div>
+
+<!-- FOOTER -->
+<div class="footer">
+  <strong>현대자동차 BZP 출장관리</strong> · 시내교통비 신청 매뉴얼<br>
+  최종 업데이트: 2026.01.22 · 문의: 트리플러스 관리자
+</div>
+
+<script>
+  function toggleQA(el) {
+    const item = el.closest('.qa-item');
+    item.classList.toggle('open');
+  }
+
+  // 스무스 스크롤
+  document.querySelectorAll('a[href^="#"]').forEach(a => {
+    a.addEventListener('click', e => {
+      e.preventDefault();
+      const target = document.querySelector(a.getAttribute('href'));
+      if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  });
+
+  // 섹션 페이드인
+  const observer = new IntersectionObserver(entries => {
+    entries.forEach(e => {
+      if (e.isIntersecting) e.target.style.animationPlayState = 'running';
+    });
+  }, { threshold: 0.1 });
+  document.querySelectorAll('.section').forEach(s => {
+    s.style.animationPlayState = 'paused';
+    observer.observe(s);
+  });
+</script>
+
+</div>
+</div>
+
+</body>
+</html>
