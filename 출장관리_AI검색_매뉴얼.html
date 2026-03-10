@@ -163,6 +163,7 @@ mark{background:rgba(79,142,247,.25);color:var(--accent);border-radius:3px;paddi
   <button class="nav-tab" id="ntab-gita" onclick="gotoPage('gita')">&#128652; 기타교통수단구간</button>
   <button class="nav-tab" id="ntab-overseas" onclick="gotoPage('overseas')">&#9992;&#65039; 해외출장</button>
   <button class="nav-tab" id="ntab-nanyang" onclick="gotoPage('nanyang')">&#128664; 남양시내교통비</button>
+  <button class="nav-tab" id="ntab-sinai" onclick="gotoPage('sinai')">&#128652; 시내교통비 신청</button>
 </nav>
 
 <div class="page active" id="page-search">
@@ -880,5 +881,1050 @@ init();
   <div class="img-modal-caption" id="imgModalCaption"></div>
 </div>
 
+<!-- 시내교통비 신청 매뉴얼 스타일 -->
+<style>
+.sinai-manual {
+  overflow-y: auto;
+  max-height: calc(100vh - 120px);
+  padding: 0;
+}
+
+  .sinai-manual {
+    --primary: #003087;
+    --accent: #00AAD2;
+    --accent2: #E8F4FD;
+    --dark: #0A0E1A;
+    --mid: #1E2A3A;
+    --text: #1a1a2e;
+    --muted: #6B7A99;
+    --light: #F4F7FF;
+    --white: #ffffff;
+    --success: #00875A;
+    --danger: #D93025;
+    --warning: #F59E0B;
+    --border: #DDE3F0;
+  }
+
+  
+
+  .sinai-manual {
+    font-family: 'Noto Sans KR', sans-serif;
+    background: var(--light);
+    color: var(--text);
+    line-height: 1.7;
+  }
+
+  /* HEADER */
+  .hero {
+    background: linear-gradient(135deg, var(--dark) 0%, var(--mid) 50%, #1a3a5c 100%);
+    color: white;
+    padding: 60px 40px 50px;
+    position: relative;
+    overflow: hidden;
+  }
+  .hero::before {
+    content: '';
+    position: absolute;
+    top: -60px; right: -60px;
+    width: 300px; height: 300px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(0,170,210,0.2) 0%, transparent 70%);
+  }
+  .hero::after {
+    content: '';
+    position: absolute;
+    bottom: -40px; left: 10%;
+    width: 200px; height: 200px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(0,48,135,0.4) 0%, transparent 70%);
+  }
+  .hero-inner {
+    max-width: 900px;
+    margin: 0 auto;
+    position: relative;
+    z-index: 1;
+  }
+  .hero-badge {
+    display: inline-block;
+    background: rgba(0,170,210,0.2);
+    border: 1px solid rgba(0,170,210,0.5);
+    color: var(--accent);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    padding: 5px 14px;
+    border-radius: 20px;
+    margin-bottom: 18px;
+  }
+  .hero h1 {
+    font-size: 36px;
+    font-weight: 900;
+    letter-spacing: -1px;
+    line-height: 1.2;
+    margin-bottom: 12px;
+  }
+  .hero h1 span { color: var(--accent); }
+  .hero-sub {
+    font-size: 15px;
+    color: rgba(255,255,255,0.6);
+    font-weight: 300;
+  }
+  .hero-meta {
+    display: flex;
+    gap: 24px;
+    margin-top: 28px;
+    flex-wrap: wrap;
+  }
+  .hero-meta-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: rgba(255,255,255,0.5);
+  }
+  .hero-meta-item strong { color: rgba(255,255,255,0.85); }
+
+  /* NAV */
+  .toc-bar {
+    background: var(--white);
+    border-bottom: 2px solid var(--border);
+    padding: 0 40px;
+    position:relative;
+    top: 0;
+    
+    box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+  }
+  .toc-inner {
+    max-width: 900px;
+    margin: 0 auto;
+    display: flex;
+    gap: 4px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .toc-inner::-webkit-scrollbar { display: none; }
+  .toc-item {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 16px 14px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--muted);
+    white-space: nowrap;
+    text-decoration: none;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -2px;
+    transition: all 0.2s;
+  }
+  .toc-item:hover { color: var(--primary); border-color: var(--accent); }
+  .toc-item .toc-num {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    background: var(--light);
+    padding: 2px 6px;
+    border-radius: 4px;
+  }
+
+  /* MAIN */
+  .main {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 40px 40px 80px;
+  }
+
+  /* SECTION */
+  .section {
+    margin-bottom: 48px;
+    animation: fadeUp 0.4s ease both;
+  }
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .section-header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 20px;
+    padding-bottom: 14px;
+    border-bottom: 2px solid var(--border);
+  }
+  .section-num {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--accent);
+    background: var(--accent2);
+    padding: 4px 10px;
+    border-radius: 6px;
+    letter-spacing: 1px;
+  }
+  .section-title {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--primary);
+  }
+  .section-icon {
+    font-size: 22px;
+    margin-left: auto;
+  }
+
+  /* CARD GRID */
+  .card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 14px;
+    margin-bottom: 16px;
+  }
+  .card {
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 20px;
+    position: relative;
+    transition: all 0.2s;
+  }
+  .card:hover {
+    border-color: var(--accent);
+    box-shadow: 0 4px 20px rgba(0,170,210,0.12);
+    transform: translateY(-2px);
+  }
+  .card-icon { font-size: 28px; margin-bottom: 10px; }
+  .card-label {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--muted);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+  .card-value {
+    font-size: 17px;
+    font-weight: 700;
+    color: var(--primary);
+  }
+  .card-desc {
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 6px;
+    line-height: 1.5;
+  }
+
+  /* INFO BOX */
+  .info-box {
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 24px 28px;
+    margin-bottom: 14px;
+  }
+  .info-box.accent { border-left: 4px solid var(--accent); }
+  .info-box.primary { border-left: 4px solid var(--primary); }
+  .info-box.warning { border-left: 4px solid var(--warning); background: #FFFBF0; }
+  .info-box.danger { border-left: 4px solid var(--danger); background: #FFF5F5; }
+  .info-box.success { border-left: 4px solid var(--success); background: #F0FAF5; }
+
+  /* BADGE */
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 10px;
+    border-radius: 20px;
+  }
+  .badge.yes { background: #E6F9F0; color: var(--success); }
+  .badge.no { background: #FDECEA; color: var(--danger); }
+  .badge.cond { background: #FFF8E6; color: #B45309; }
+
+  /* TABLE */
+  .table-wrap {
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    overflow: hidden;
+    margin-bottom: 14px;
+  }
+  table { width: 100%; border-collapse: collapse; }
+  th {
+    background: var(--primary);
+    color: white;
+    font-size: 13px;
+    font-weight: 600;
+    padding: 13px 18px;
+    text-align: left;
+  }
+  td {
+    font-size: 13px;
+    padding: 12px 18px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: middle;
+  }
+  tr:last-child td { border-bottom: none; }
+  tr:nth-child(even) td { background: #FAFBFF; }
+  tr:hover td { background: var(--accent2); }
+
+  /* STEP */
+  .steps { display: flex; flex-direction: column; gap: 0; }
+  .step {
+    display: flex;
+    gap: 20px;
+    position: relative;
+  }
+  .step:not(:last-child)::before {
+    content: '';
+    position: absolute;
+    left: 20px;
+    top: 44px;
+    bottom: 0;
+    width: 2px;
+    background: var(--border);
+  }
+  .step-num {
+    flex-shrink: 0;
+    width: 40px;
+    height: 40px;
+    background: var(--primary);
+    color: white;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 14px;
+    font-weight: 600;
+    position: relative;
+    z-index: 1;
+  }
+  .step-.sinai-manual {
+    flex: 1;
+    padding-bottom: 28px;
+  }
+  .step-title {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--primary);
+    margin-bottom: 6px;
+    padding-top: 8px;
+  }
+  .step-desc {
+    font-size: 13px;
+    color: var(--muted);
+    line-height: 1.6;
+  }
+  .step-tag {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 4px;
+    margin-top: 6px;
+  }
+  .step-tag.blue { background: var(--accent2); color: var(--primary); }
+  .step-tag.gray { background: var(--light); color: var(--muted); }
+
+  /* LIST */
+  .check-list { list-style: none; display: flex; flex-direction: column; gap: 10px; }
+  .check-list li {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    font-size: 14px;
+    line-height: 1.6;
+  }
+  .check-list li::before {
+    content: '✓';
+    flex-shrink: 0;
+    width: 22px;
+    height: 22px;
+    background: var(--primary);
+    color: white;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 700;
+    margin-top: 1px;
+  }
+  .x-list li::before {
+    content: '✗';
+    background: var(--danger) !important;
+  }
+
+  /* TAG ROW */
+  .tag-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 8px;
+  }
+  .tag {
+    font-size: 13px;
+    font-weight: 600;
+    padding: 6px 14px;
+    border-radius: 8px;
+    background: var(--accent2);
+    color: var(--primary);
+    border: 1px solid rgba(0,170,210,0.3);
+  }
+
+  /* QA */
+  .qa-list { display: flex; flex-direction: column; gap: 12px; }
+  .qa-item {
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    overflow: hidden;
+    transition: all 0.2s;
+  }
+  .qa-item:hover { border-color: var(--accent); }
+  .qa-q {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 18px 22px;
+    cursor: pointer;
+    user-select: none;
+  }
+  .qa-q-mark {
+    flex-shrink: 0;
+    width: 26px;
+    height: 26px;
+    background: var(--primary);
+    color: white;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 13px;
+    font-weight: 700;
+    margin-top: 1px;
+  }
+  .qa-q-text {
+    flex: 1;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+    line-height: 1.5;
+  }
+  .qa-arrow {
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 5px;
+    transition: transform 0.2s;
+  }
+  .qa-item.open .qa-arrow { transform: rotate(180deg); }
+  .qa-a {
+    display: none;
+    padding: 0 22px 18px 60px;
+    font-size: 13px;
+    color: var(--muted);
+    line-height: 1.7;
+    border-top: 1px solid var(--border);
+    padding-top: 16px;
+  }
+  .qa-a-mark {
+    display: inline-block;
+    font-weight: 700;
+    color: var(--accent);
+    margin-right: 4px;
+  }
+  .qa-item.open .qa-a { display: block; }
+
+  /* HIGHLIGHT */
+  .highlight {
+    background: linear-gradient(135deg, var(--primary) 0%, #005580 100%);
+    color: white;
+    border-radius: 16px;
+    padding: 28px;
+    margin-bottom: 14px;
+  }
+  .highlight h3 { font-size: 16px; font-weight: 700; margin-bottom: 12px; opacity: 0.9; }
+  .highlight-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 12px;
+  }
+  .highlight-item {
+    background: rgba(255,255,255,0.1);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 10px;
+    padding: 14px 16px;
+    text-align: center;
+  }
+  .highlight-item .val {
+    font-size: 24px;
+    font-weight: 900;
+    color: var(--accent);
+    display: block;
+    font-family: 'IBM Plex Mono', monospace;
+  }
+  .highlight-item .lbl {
+    font-size: 12px;
+    opacity: 0.7;
+    margin-top: 4px;
+  }
+
+  /* NOTICE */
+  .notice {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    background: #FFFBF0;
+    border: 1px solid #FDE68A;
+    border-radius: 10px;
+    padding: 14px 18px;
+    font-size: 13px;
+    color: #78350F;
+    margin-top: 12px;
+  }
+  .notice-icon { font-size: 18px; flex-shrink: 0; }
+
+  /* FOOTER */
+  .footer {
+    background: var(--dark);
+    color: rgba(255,255,255,0.4);
+    text-align: center;
+    padding: 30px;
+    font-size: 12px;
+    letter-spacing: 0.5px;
+  }
+  .footer strong { color: rgba(255,255,255,0.7); }
+
+  /* RESPONSIVE */
+  @media (max-width: 600px) {
+    .hero { padding: 40px 20px 36px; }
+    .hero h1 { font-size: 26px; }
+    .toc-bar { padding: 0 16px; }
+    .main { padding: 24px 16px 60px; }
+    th, td { padding: 10px 12px; }
+  }
+
+</style>
+
+<div id="page-sinai" class="page">
+<div class="sinai-manual">
+
+
+<!-- HERO -->
+<div class="hero">
+  <div class="hero-inner">
+    <div class="hero-badge">HYUNDAI MOTOR · BZP 출장관리</div>
+    <h1>시내교통비<br><span>신청 매뉴얼</span></h1>
+
+  </div>
+</div>
+
+<!-- TOC -->
+<div class="toc-bar">
+  <div class="toc-inner">
+    <a class="toc-item" href="#sec1"><span class="toc-num">01</span> 개요</a>
+    <a class="toc-item" href="#sec2"><span class="toc-num">02</span> 이용대상</a>
+    <a class="toc-item" href="#sec3"><span class="toc-num">03</span> 신청방법</a>
+    <a class="toc-item" href="#sec4"><span class="toc-num">04</span> 출장규정</a>
+    <a class="toc-item" href="#sec5"><span class="toc-num">05</span> 교통수단</a>
+    <a class="toc-item" href="#sec6"><span class="toc-num">06</span> 지급기준</a>
+    <a class="toc-item" href="#sec7"><span class="toc-num">07</span> FAQ</a>
+  </div>
+</div>
+
+<div class="main">
+
+  <!-- 01 개요 -->
+  <div class="section" id="sec1">
+    <div class="section-header">
+      <span class="section-num">01</span>
+      <span class="section-title">개요 및 사용 목적</span>
+      <span class="section-icon">📋</span>
+    </div>
+
+    <div class="highlight">
+      <h3>🎯 이 시스템은 무엇인가요?</h3>
+      <div class="highlight-grid">
+        <div class="highlight-item">
+          <span class="val">50km</span>
+          <div class="lbl">이하 근거리 출장 커버</div>
+        </div>
+        <div class="highlight-item">
+          <span class="val">PC</span>
+          <div class="lbl">오토웨이 시스템 전용</div>
+        </div>
+        <div class="highlight-item">
+          <span class="val">1일</span>
+          <div class="lbl">단위 신청</div>
+        </div>
+        <div class="highlight-item">
+          <span class="val">90일</span>
+          <div class="lbl">이내 소급 신청 가능</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="info-box accent">
+      <p style="font-size:14px; color:var(--text); line-height:1.8;">
+        국내출장비 정산서에서 신청 불가한 <strong>50km 이하 구간의 근거리 출장</strong>을 커버하기 위한 별도 정산 시스템입니다.<br>
+        연구소 직원들이 근거리 출장 시 교통비를 지급받을 수 있도록 운영됩니다.
+      </p>
+    </div>
+
+    <div class="notice">
+      <span class="notice-icon">⚠️</span>
+      <span>모바일(MO 트리플러스 앱)에서는 동일 환경 제공이 불가합니다. <strong>반드시 PC에서 이용</strong>해주세요.</span>
+    </div>
+  </div>
+
+  <!-- 02 이용대상 -->
+  <div class="section" id="sec2">
+    <div class="section-header">
+      <span class="section-num">02</span>
+      <span class="section-title">이용 대상</span>
+      <span class="section-icon">👥</span>
+    </div>
+
+    <div class="card-grid">
+      <div class="card">
+        <div class="card-icon">🏭</div>
+        <div class="card-value">남양연구소</div>
+      </div>
+      <div class="card">
+        <div class="card-icon">🔬</div>
+        <div class="card-value">마북연구소</div>
+      </div>
+      <div class="card">
+        <div class="card-icon">⚙️</div>
+        <div class="card-value">의왕연구소</div>
+      </div>
+      <div class="card">
+        <div class="card-icon">💡</div>
+        <div class="card-value">판교연구소</div>
+      </div>
+      <div class="card">
+        <div class="card-icon">🏢</div>
+        <div class="card-value">강남대로 일부</div>
+      </div>
+    </div>
+
+    <div class="info-box primary">
+      <p style="font-size:14px; font-weight:600; color:var(--primary); margin-bottom:8px;">📝 대리작성 이용 시</p>
+      <p style="font-size:13px; color:var(--text);">권한관리 → 대리작성 권한관리에서 <strong>'나'가 작성할 수 있는 출장자</strong>로 등록되어야 합니다. (국내출장비와 동일 방식)</p>
+    </div>
+  </div>
+
+  <!-- 03 신청방법 -->
+  <div class="section" id="sec3">
+    <div class="section-header">
+      <span class="section-num">03</span>
+      <span class="section-title">신청 방법 및 메뉴</span>
+      <span class="section-icon">🖥️</span>
+    </div>
+
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-body">
+          <div class="step-title">오토웨이 시스템 접속</div>
+          <div class="step-desc">PC 브라우저에서 오토웨이 시스템에 접속합니다. 모바일은 지원하지 않습니다.</div>
+          <span class="step-tag blue">PC 전용</span>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-body">
+          <div class="step-title">시내교통비 신청 메뉴 선택</div>
+          <div class="step-desc">별도 생성된 <strong>시내교통비 신청</strong> 메뉴로 이동합니다. (링크로 제공)</div>
+          <span class="step-tag blue">본인작성 / 대리작성 동일 목록</span>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-body">
+          <div class="step-title">출장 정보 입력</div>
+          <div class="step-desc">출장일, 경로, 이동수단, 식비/잡비 등을 입력합니다. 필수값 미입력 시 임시저장 불가.</div>
+          <span class="step-tag gray">필수값 입력 필요</span>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">4</div>
+        <div class="step-body">
+          <div class="step-title">결재 요청</div>
+          <div class="step-desc">작성 완료 후 결재 요청. 결재는 <strong>그룹웨어</strong>에서 결재자가 처리합니다.</div>
+          <span class="step-tag blue">그룹웨어 연동</span>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">5</div>
+        <div class="step-body">
+          <div class="step-title">지급 처리</div>
+          <div class="step-desc">남양연구소 직원이 지급 검증 후 <strong>급여/경비 계좌</strong>로 입금 처리합니다.</div>
+          <span class="step-tag gray">남양연구소 담당자 검증</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="notice">
+      <span class="notice-icon">💡</span>
+      <span>관리자는 <strong>트리플러스 &gt; 시내교통비 관리</strong> 메뉴를 사용합니다. (신청목록 전체 / 정산현황 / 지급전표관리)</span>
+    </div>
+  </div>
+
+  <!-- 04 출장규정 -->
+  <div class="section" id="sec4">
+    <div class="section-header">
+      <span class="section-num">04</span>
+      <span class="section-title">출장 규정</span>
+      <span class="section-icon">📌</span>
+    </div>
+
+    <div class="card-grid" style="grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));">
+      <div class="card">
+        <div class="card-icon">📅</div>
+        <div class="card-label">출장 기간</div>
+        <div class="card-value" style="font-size:14px; margin-top:8px;">1일 단위 / 평일만</div>
+        <div class="card-desc">접속일 기준 90일 이내 선택 가능<br>임시저장·반려 문서는 이전 날짜도 가능 (단, 당해년도 이내)</div>
+      </div>
+      <div class="card">
+        <div class="card-icon">🗺️</div>
+        <div class="card-label">경로 설정</div>
+        <div class="card-value" style="font-size:14px; margin-top:8px;">근무지 자동 세팅</div>
+        <div class="card-desc">출발지·복귀지는 상세근무지 자동 설정<br>남양/마북/의왕/판교/강남대로만 선택 가능 (주소 입력 불가)</div>
+      </div>
+    </div>
+
+    <div class="info-box warning">
+      <p style="font-size:14px; font-weight:700; margin-bottom:10px;">🚫 중복 신청 불가 규정</p>
+      <ul class="check-list x-list">
+        <li>국내출장비 정산서와 동일한 날짜는 시내교통비 신청 불가</li>
+        <li>주말(토·일) 출장 신청 불가</li>
+        <li>출장비 합계가 0원인 경우 신청 불가</li>
+      </ul>
+    </div>
+
+    <div class="info-box primary">
+      <p style="font-size:14px; font-weight:700; color:var(--primary); margin-bottom:10px;">👔 직급별 O/D 지원금</p>
+      <div class="table-wrap" style="margin-bottom:0; border:none;">
+        <table>
+          <tr>
+            <th>직급</th>
+            <th>O/D 지원금 체크</th>
+            <th>적용 규정</th>
+          </tr>
+          <tr>
+            <td><strong>책임연구원 (4F)</strong></td>
+            <td><span class="badge yes">✓ 가능</span></td>
+            <td>G4 규정 대우</td>
+          </tr>
+          <tr>
+            <td>책임연구원 (4F) — 미체크</td>
+            <td><span class="badge cond">미체크</span></td>
+            <td>G1~G3 (일반 직원) 동일</td>
+          </tr>
+          <tr>
+            <td>4F 외 전 직급 (임원 포함)</td>
+            <td><span class="badge no">✗ 불가</span></td>
+            <td>해당 직급 규정 적용</td>
+          </tr>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- 05 교통수단 -->
+  <div class="section" id="sec5">
+    <div class="section-header">
+      <span class="section-num">05</span>
+      <span class="section-title">이동수단별 지급 기준</span>
+      <span class="section-icon">🚗</span>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>이동수단</th>
+            <th>교통비</th>
+            <th>유류비</th>
+            <th>통행료</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>🚌 시내교통</strong><br><span style="font-size:11px;color:var(--muted)">버스, 택시 등</span></td>
+            <td><span class="badge yes">✓ 실비</span></td>
+            <td><span class="badge no">✗ 미지급</span></td>
+            <td><span class="badge no">✗ 미지급</span></td>
+          </tr>
+          <tr>
+            <td><strong>🚙 자기차량</strong></td>
+            <td><span class="badge no">✗ 미지급</span></td>
+            <td><span class="badge yes">✓ 정액</span><br><span style="font-size:11px;color:var(--muted)">오피넷 당일 기준</span></td>
+            <td><span class="badge yes">✓ 실비</span><br><span style="font-size:11px;color:var(--muted)">증빙 필수</span></td>
+          </tr>
+          <tr>
+            <td><strong>🏢 업무용/시험차</strong></td>
+            <td><span class="badge no">✗ 미지급</span></td>
+            <td><span class="badge no">✗ 미지급</span></td>
+            <td><span class="badge no">✗ 미지급</span></td>
+          </tr>
+          <tr>
+            <td><strong>👥 동승자 차량</strong></td>
+            <td><span class="badge no">✗ 미지급</span></td>
+            <td><span class="badge no">✗ 미지급</span></td>
+            <td><span class="badge no">✗ 미지급</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="notice">
+      <span class="notice-icon">⚠️</span>
+      <span><strong>주의:</strong> 1구간이라도 자기차량을 선택하면 <strong>모든 구간이 자기차량으로 자동 적용</strong>됩니다.</span>
+    </div>
+
+    <div class="info-box warning" style="margin-top:14px;">
+      <p style="font-size:14px; font-weight:700; margin-bottom:10px;">📎 파일 첨부 정책</p>
+      <ul class="check-list">
+        <li><strong>통행료:</strong> 입력 시 <strong>무조건</strong> 증빙 파일 첨부 필요</li>
+        <li><strong>교통비:</strong> 신청금액이 예상 교통비(티맵 기준)를 <strong>초과하는 경우에만</strong> 첨부 필요</li>
+      </ul>
+      <div class="notice" style="margin-top:12px;">
+        <span class="notice-icon">💡</span>
+        <span>교통비 예상금액: 티맵 최적거리 기준 API 10개 응답값 중 <strong>최대거리(가장 비싼 금액)</strong>을 기준으로 산정</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 06 지급기준 -->
+  <div class="section" id="sec6">
+    <div class="section-header">
+      <span class="section-num">06</span>
+      <span class="section-title">항목별 지급 기준</span>
+      <span class="section-icon">💰</span>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>지급 항목</th>
+            <th>임원</th>
+            <th>G4 대우 (책임연구원 O/D 체크)</th>
+            <th>일반 직원 (G1~G3)</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>🚌 교통비</strong></td>
+            <td><span class="badge no">✗ 미지급</span></td>
+            <td><span class="badge no">✗ 미지급</span></td>
+            <td><span class="badge yes">✓ 실비</span></td>
+          </tr>
+          <tr>
+            <td><strong>⛽ 유류비</strong></td>
+            <td><span class="badge no">✗ 미지급</span></td>
+            <td><span class="badge no">✗ 미지급</span></td>
+            <td><span class="badge yes">✓ 정액</span></td>
+          </tr>
+          <tr>
+            <td><strong>🛣️ 통행료</strong></td>
+            <td><span class="badge yes">✓ 실비</span></td>
+            <td><span class="badge yes">✓ 실비</span></td>
+            <td><span class="badge yes">✓ 실비</span></td>
+          </tr>
+          <tr>
+            <td><strong>🍱 식비</strong></td>
+            <td><span class="badge yes">✓ 9,000원</span></td>
+            <td><span class="badge yes">✓ 9,000원</span></td>
+            <td><span class="badge yes">✓ 9,000원</span></td>
+          </tr>
+          <tr>
+            <td><strong>💼 잡비</strong></td>
+            <td><span class="badge no">✗ 미지급</span></td>
+            <td><span class="badge cond">조건부</span></td>
+            <td><span class="badge cond">조건부</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="info-box accent">
+      <p style="font-size:14px; font-weight:700; color:var(--primary); margin-bottom:10px;">💼 잡비 2,000원 지급 조건</p>
+      <div style="display:grid; grid-template-columns: 1fr 1fr; gap:16px;">
+        <div>
+          <p style="font-size:12px; font-weight:700; color:var(--muted); margin-bottom:6px;">G4 대우 (책임연구원)</p>
+          <ul class="check-list" style="font-size:13px;">
+            <li>업무용차/시험차 미선택 <strong>AND</strong> 식대 신청 시</li>
+          </ul>
+        </div>
+        <div>
+          <p style="font-size:12px; font-weight:700; color:var(--muted); margin-bottom:6px;">일반 직원 (G1~G3)</p>
+          <ul class="check-list" style="font-size:13px;">
+            <li>시내교통 선택 시</li>
+            <li>자기차량 선택 시</li>
+            <li>식대 신청 시</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="info-box success">
+      <p style="font-size:14px; font-weight:700; color:var(--success); margin-bottom:6px;">💳 지급 계좌</p>
+      <p style="font-size:13px; color:var(--text);">모든 지급은 <strong>급여/경비 계좌</strong>로 고정 처리됩니다. 별도 계좌 지정 불가.</p>
+    </div>
+  </div>
+
+  <!-- 07 FAQ -->
+  <div class="section" id="sec7">
+    <div class="section-header">
+      <span class="section-num">07</span>
+      <span class="section-title">자주 묻는 질문 (FAQ)</span>
+      <span class="section-icon">❓</span>
+    </div>
+
+    <div class="qa-list">
+
+      <div class="qa-item">
+        <div class="qa-q" onclick="toggleQA(this)">
+          <div class="qa-q-mark">Q</div>
+          <div class="qa-q-text">저는 신청 가능한 대상인가요?</div>
+          <div class="qa-arrow">▼</div>
+        </div>
+        <div class="qa-a"><span class="qa-a-mark">A</span> 남양 / 마북 / 의왕 / 판교 / 강남대로 근무자만 신청 가능합니다. 해당 근무지가 아닌 경우 신청이 불가합니다.</div>
+      </div>
+
+      <div class="qa-item">
+        <div class="qa-q" onclick="toggleQA(this)">
+          <div class="qa-q-mark">Q</div>
+          <div class="qa-q-text">출장을 2~3일 연속으로 신청할 수 있나요?</div>
+          <div class="qa-arrow">▼</div>
+        </div>
+        <div class="qa-a"><span class="qa-a-mark">A</span> 시내교통비는 <strong>1일 단위</strong>로만 신청 가능합니다. 날짜별로 각각 따로 신청해주세요.</div>
+      </div>
+
+      <div class="qa-item">
+        <div class="qa-q" onclick="toggleQA(this)">
+          <div class="qa-q-mark">Q</div>
+          <div class="qa-q-text">지난 달 출장을 지금 신청해도 되나요?</div>
+          <div class="qa-arrow">▼</div>
+        </div>
+        <div class="qa-a"><span class="qa-a-mark">A</span> 접속일 기준 <strong>90일 이내</strong>라면 소급 신청이 가능합니다. 90일이 초과된 출장은 신청이 불가합니다.</div>
+      </div>
+
+      <div class="qa-item">
+        <div class="qa-q" onclick="toggleQA(this)">
+          <div class="qa-q-mark">Q</div>
+          <div class="qa-q-text">국내출장비 정산서에 등록한 날짜도 신청 가능한가요?</div>
+          <div class="qa-arrow">▼</div>
+        </div>
+        <div class="qa-a"><span class="qa-a-mark">A</span> 불가합니다. 국내출장비 정산서와 <strong>동일한 날짜는 중복 신청이 불가</strong>합니다.</div>
+      </div>
+
+      <div class="qa-item">
+        <div class="qa-q" onclick="toggleQA(this)">
+          <div class="qa-q-mark">Q</div>
+          <div class="qa-q-text">출발지를 집 주소로 변경할 수 있나요?</div>
+          <div class="qa-arrow">▼</div>
+        </div>
+        <div class="qa-a"><span class="qa-a-mark">A</span> 불가합니다. 출발지와 복귀지는 <strong>상세근무지로 자동 설정</strong>되며, 남양/마북/의왕/판교/강남대로만 선택 가능합니다. 임의 주소 입력은 지원하지 않습니다. 단, 미복귀 체크 시 편도 신청은 가능합니다.</div>
+      </div>
+
+      <div class="qa-item">
+        <div class="qa-q" onclick="toggleQA(this)">
+          <div class="qa-q-mark">Q</div>
+          <div class="qa-q-text">택시비가 예상 금액보다 많이 나왔는데 전액 받을 수 있나요?</div>
+          <div class="qa-arrow">▼</div>
+        </div>
+        <div class="qa-a"><span class="qa-a-mark">A</span> 티맵 기준 예상 교통비 이내라면 전액 신청 가능합니다. <strong>예상 교통비를 초과하는 경우</strong>에는 영수증 등 증빙 파일을 첨부해야 합니다.</div>
+      </div>
+
+      <div class="qa-item">
+        <div class="qa-q" onclick="toggleQA(this)">
+          <div class="qa-q-mark">Q</div>
+          <div class="qa-q-text">1구간은 내 차, 나머지 구간은 대중교통으로 신청할 수 있나요?</div>
+          <div class="qa-arrow">▼</div>
+        </div>
+        <div class="qa-a"><span class="qa-a-mark">A</span> 불가합니다. <strong>1구간이라도 자기차량을 선택하면 모든 구간이 자기차량으로 적용</strong>됩니다. 교통비 대신 유류비 + 통행료만 받을 수 있습니다.</div>
+      </div>
+
+      <div class="qa-item">
+        <div class="qa-q" onclick="toggleQA(this)">
+          <div class="qa-q-mark">Q</div>
+          <div class="qa-q-text">O/D 지원금은 무엇이고, 누가 신청할 수 있나요?</div>
+          <div class="qa-arrow">▼</div>
+        </div>
+        <div class="qa-a"><span class="qa-a-mark">A</span> 책임연구원(직급코드 4F)에게만 제공되는 추가 지원금입니다. O/D 체크 시 <strong>G4 규정 대우</strong>를 받으며, 미체크 시에는 일반 직원(G1~G3)과 동일하게 처리됩니다. 임원을 포함한 4F 이외 직급은 O/D 지원금 신청이 불가합니다.</div>
+      </div>
+
+      <div class="qa-item">
+        <div class="qa-q" onclick="toggleQA(this)">
+          <div class="qa-q-mark">Q</div>
+          <div class="qa-q-text">임원인데 교통비/유류비를 못 받는다고 하던데 맞나요?</div>
+          <div class="qa-arrow">▼</div>
+        </div>
+        <div class="qa-a"><span class="qa-a-mark">A</span> 맞습니다. 임원 및 G4 대우 직원은 <strong>교통비, 유류비가 지급되지 않습니다.</strong> 다만 통행료(실비)와 식비(9,000원)는 동일하게 지급됩니다.</div>
+      </div>
+
+      <div class="qa-item">
+        <div class="qa-q" onclick="toggleQA(this)">
+          <div class="qa-q-mark">Q</div>
+          <div class="qa-q-text">규정 금액보다 초과해서 신청해도 결재 요청이 가능한가요?</div>
+          <div class="qa-arrow">▼</div>
+        </div>
+        <div class="qa-a"><span class="qa-a-mark">A</span> 가능합니다. 초과 금액이어도 결재 요청 자체는 가능합니다. 다만 <strong>관리자 화면에 초과 여부가 표시</strong>되며, 지급 여부는 담당자 검토 후 결정됩니다.</div>
+      </div>
+
+      <div class="qa-item">
+        <div class="qa-q" onclick="toggleQA(this)">
+          <div class="qa-q-mark">Q</div>
+          <div class="qa-q-text">교통비가 입금되는 계좌를 변경할 수 있나요?</div>
+          <div class="qa-arrow">▼</div>
+        </div>
+        <div class="qa-a"><span class="qa-a-mark">A</span> 불가합니다. 모든 지급은 <strong>급여/경비 계좌</strong>로 고정 처리됩니다. 별도 계좌 지정은 지원하지 않습니다.</div>
+      </div>
+
+    </div>
+  </div>
+
+</div>
+
+<!-- FOOTER -->
+<div class="footer">
+  <strong>현대자동차 BZP 출장관리</strong> · 시내교통비 신청 매뉴얼<br>
+  최종 업데이트: 2026.01.22 · 문의: 트리플러스 관리자
+</div>
+
+<script>
+  function toggleQA(el) {
+    const item = el.closest('.qa-item');
+    item.classList.toggle('open');
+  }
+
+  // 스무스 스크롤
+  document.querySelectorAll('a[href^="#"]').forEach(a => {
+    a.addEventListener('click', e => {
+      e.preventDefault();
+      const target = document.querySelector(a.getAttribute('href'));
+      if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  });
+
+  // 섹션 페이드인
+  const observer = new IntersectionObserver(entries => {
+    entries.forEach(e => {
+      if (e.isIntersecting) e.target.style.animationPlayState = 'running';
+    });
+  }, { threshold: 0.1 });
+  document.querySelectorAll('.section').forEach(s => {
+    s.style.animationPlayState = 'paused';
+    observer.observe(s);
+  });
+</script>
+
+</div>
+</div>
 </body>
 </html>
