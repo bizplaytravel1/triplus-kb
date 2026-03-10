@@ -137,18 +137,29 @@ header{background:#1a1f36;padding:0 24px;display:flex;align-items:center;gap:16p
 .empty{text-align:center;padding:40px;color:#94a3c0;font-size:13px}
 
 /* ── 이미지 업로드 ── */
-.img-upload-wrap{border:2px dashed #d0d9ee;border-radius:10px;padding:16px;margin-top:10px;text-align:center;cursor:pointer;transition:all .2s;background:#f8fafc}
-.img-upload-wrap:hover,.img-upload-wrap.dragover{border-color:#2563eb;background:#eff6ff}
+.img-upload-wrap{border:2px dashed #d0d9ee;border-radius:10px;padding:20px 16px;margin-top:10px;text-align:center;cursor:pointer;transition:all .25s;background:#f8fafc}
+.img-upload-wrap:hover,.img-upload-wrap.dragover{border-color:#2563eb;background:#eff6ff;transform:scale(1.01)}
 .img-upload-wrap input[type=file]{display:none}
-.img-upload-icon{font-size:28px;margin-bottom:6px}
-.img-upload-text{font-size:12px;color:#94a3c0}
+.img-upload-icon{font-size:32px;margin-bottom:8px;transition:transform .2s}
+.img-upload-wrap:hover .img-upload-icon{transform:scale(1.15)}
+.img-upload-text{font-size:12px;color:#94a3c0;line-height:1.6}
 .img-upload-text strong{color:#2563eb}
-.img-preview-wrap{margin-top:10px;position:relative;display:inline-block}
-.img-preview-wrap img{max-width:100%;max-height:200px;border-radius:8px;border:1.5px solid #e2e8f0;display:block}
-.img-remove-btn{position:absolute;top:-8px;right:-8px;background:#ef4444;color:#fff;border:none;border-radius:50%;width:22px;height:22px;font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1}
-.img-progress{height:6px;background:#e2e8f0;border-radius:4px;overflow:hidden;margin-top:6px;display:none}
-.img-progress-bar{height:100%;background:linear-gradient(90deg,#2563eb,#059669);width:0%;transition:width .3s;border-radius:4px}
-.img-url-box{font-size:11px;color:#94a3c0;word-break:break-all;margin-top:4px;padding:4px 8px;background:#f1f5f9;border-radius:6px;display:none}
+.img-preview-wrap{margin-top:10px;position:relative;display:inline-block;max-width:100%}
+.img-preview-wrap img{max-width:100%;max-height:220px;border-radius:10px;border:2px solid #e2e8f0;display:block;box-shadow:0 4px 16px rgba(0,0,0,.08)}
+.img-remove-btn{position:absolute;top:-9px;right:-9px;background:#ef4444;color:#fff;border:none;border-radius:50%;width:24px;height:24px;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;box-shadow:0 2px 6px rgba(239,68,68,.4);transition:transform .15s}
+.img-remove-btn:hover{transform:scale(1.15)}
+/* 처리 중 오버레이 */
+.img-processing-overlay{display:none;position:absolute;inset:0;background:rgba(255,255,255,.85);border-radius:10px;align-items:center;justify-content:center;flex-direction:column;gap:8px;backdrop-filter:blur(2px)}
+.img-processing-overlay.show{display:flex}
+.img-spin{width:28px;height:28px;border:3px solid #e2e8f0;border-top-color:#2563eb;border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.img-proc-text{font-size:12px;color:#2563eb;font-weight:700}
+/* 완료 뱃지 */
+.img-ok-badge{display:none;position:absolute;bottom:8px;left:8px;background:rgba(5,150,105,.9);color:#fff;font-size:11px;font-weight:700;padding:3px 8px;border-radius:6px;gap:4px;align-items:center}
+.img-ok-badge.show{display:flex}
+/* 진행바 제거 → 오버레이로 대체 */
+.img-progress{display:none}
+.img-url-box{font-size:11px;color:#22c55e;word-break:break-all;margin-top:6px;padding:5px 10px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;display:none}
 /* 테이블에서 이미지 썸네일 */
 .tbl-thumb{width:36px;height:36px;object-fit:cover;border-radius:6px;border:1.5px solid #e2e8f0;cursor:pointer;transition:transform .2s}
 .tbl-thumb:hover{transform:scale(1.1)}
@@ -596,24 +607,27 @@ function mkFields(sch,data){
     if(f.t==='sel'){h+='<select id="f-'+f.k+'">'+(f.opts||[]).map(function(o){return '<option value="'+o+'"'+(String(v)===String(o)?' selected':'')+'>'+(o||'-')+'</option>';}).join('')+'</select>';}
     else if(f.tall){h+='<textarea id="f-'+f.k+'" class="tall" placeholder="'+(f.ph||'')+'">'+esc(String(v))+'</textarea>';}
     else if(f.t==='img'){
-      var hasImg=v&&(v.startsWith('http')||v.startsWith('/'));
+      var hasImg=v&&(v.startsWith('http')||v.startsWith('data:'));
       h+='<div id="img-wrap-'+f.k+'">';
       /* 업로드 존 — 항상 렌더링, 이미지 있으면 숨김 */
       h+='<div class="img-upload-wrap" id="zone-'+f.k+'" data-zonekey="'+f.k+'"'+(hasImg?' style="display:none"':'')+' >';
       h+='<input type="file" id="fi-'+f.k+'" data-filekey="'+f.k+'" accept="image/*">';
       h+='<div class="img-upload-icon">🖼️</div>';
-      h+='<div class="img-upload-text">클릭 또는 드래그<br><strong>JPG, PNG, GIF, WebP</strong> (최대 5MB)</div>';
+      h+='<div class="img-upload-text">클릭 또는 드래그<br><strong>JPG · PNG · GIF · WebP</strong> (최대 5MB)</div>';
       h+='</div>';
-      /* 업로드 진행바 */
-      h+='<div class="img-progress" id="prog-'+f.k+'"><div class="img-progress-bar" id="progbar-'+f.k+'"></div></div>';
-      /* 미리보기 — 이미지 있으면 바로 표시 */
+      /* 미리보기 래퍼 — 처리 오버레이 포함 */
       h+='<div class="img-preview-wrap" id="prev-'+f.k+'"'+(hasImg?'':' style="display:none"')+'>';
-      h+='<img src="'+(hasImg?esc(v):'')+'" alt="미리보기" style="max-width:100%;max-height:200px;border-radius:8px;border:1.5px solid #e2e8f0;display:block">';
+      h+='<img src="'+(hasImg?esc(v):'')+'" id="img-el-'+f.k+'" alt="미리보기">';
       h+='<button class="img-remove-btn" data-rmkey="'+f.k+'">✕</button>';
+      h+='<div class="img-processing-overlay" id="overlay-'+f.k+'">';
+      h+='<div class="img-spin"></div>';
+      h+='<div class="img-proc-text" id="proc-text-'+f.k+'">처리 중...</div>';
       h+='</div>';
-      /* URL 표시 박스 */
-      h+='<div class="img-url-box" id="url-'+f.k+'"'+(hasImg?' style="display:block"':'')+'>'+esc(hasImg?v:'')+'</div>';
-      /* hidden input — 항상 존재, 현재 URL 값 보유 */
+      h+='<div class="img-ok-badge" id="ok-badge-'+f.k+'">✅ 저장 완료</div>';
+      h+='</div>';
+      /* URL 표시 — 이미지 있으면 표시 */
+      h+='<div class="img-url-box" id="url-'+f.k+'"'+(hasImg?' style="display:block"':'')+'>'+(hasImg?'✅ 이미지 등록됨':'')+'</div>';
+      /* hidden input */
       h+='<input type="hidden" id="f-'+f.k+'" value="'+esc(hasImg?v:'')+'">';
       h+='</div>';
     }
@@ -672,62 +686,71 @@ async function doDelete(){
 }
 
 /* ── 이미지 업로드 ── */
-function handleImgFile(key, file){
-  if(!file) return;
-  if(file.size > 5*1024*1024){alert('파일이 5MB를 초과합니다.'); return;}
-
-  // 업로드 존 숨기고 미리보기 표시 (로컬 blob)
-  var zone=document.getElementById('zone-'+key);
-  var prev=document.getElementById('prev-'+key);
-  if(zone) zone.style.display='none';
-
+// 이미지 Canvas 압축 함수
+function compressImage(file, maxW, maxH, quality, cb){
   var reader=new FileReader();
   reader.onload=function(e){
-    if(prev){
-      prev.style.display='inline-block';
-      var img=prev.querySelector('img');
-      if(img) img.src=e.target.result;
-    }
+    var imgEl=new Image();
+    imgEl.onload=function(){
+      var w=imgEl.width, h=imgEl.height;
+      // 비율 유지 축소
+      if(w>maxW||h>maxH){
+        var ratio=Math.min(maxW/w, maxH/h);
+        w=Math.round(w*ratio); h=Math.round(h*ratio);
+      }
+      var canvas=document.createElement('canvas');
+      canvas.width=w; canvas.height=h;
+      var ctx=canvas.getContext('2d');
+      ctx.drawImage(imgEl,0,0,w,h);
+      cb(canvas.toDataURL('image/jpeg', quality));
+    };
+    imgEl.src=e.target.result;
   };
   reader.readAsDataURL(file);
+}
 
-  // 저장 버튼 비활성화 + 업로드 중 플래그
-  IMG_UPLOADING=true;
-  var saveBtn=document.getElementById('modal-save');
-  if(saveBtn){saveBtn.disabled=true;saveBtn.textContent='⏳ 업로드 중...';}
+function handleImgFile(key, file){
+  if(!file) return;
+  if(file.size > 10*1024*1024){alert('파일이 10MB를 초과합니다.'); return;}
 
-  var prog=document.getElementById('prog-'+key);
-  var bar=document.getElementById('progbar-'+key);
+  var zone=document.getElementById('zone-'+key);
+  var prev=document.getElementById('prev-'+key);
+  var imgEl=document.getElementById('img-el-'+key);
+  var overlay=document.getElementById('overlay-'+key);
+  var procText=document.getElementById('proc-text-'+key);
+  var okBadge=document.getElementById('ok-badge-'+key);
   var urlBox=document.getElementById('url-'+key);
-  if(prog) prog.style.display='block';
+  var hidden=document.getElementById('f-'+key);
+  var saveBtn=document.getElementById('modal-save');
 
-  var fname='images/'+Date.now()+'_'+file.name.replace(/[^a-zA-Z0-9._-]/g,'_');
-  var ref=storage.ref(fname);
-  var task=ref.put(file);
-  task.on('state_changed',
-    function(snap){
-      var pct=Math.round(snap.bytesTransferred/snap.totalBytes*100);
-      if(bar) bar.style.width=pct+'%';
-    },
-    function(err){
-      alert('업로드 실패: '+err.message);
-      if(prog) prog.style.display='none';
-      IMG_UPLOADING=false;
-      if(saveBtn){saveBtn.disabled=false;saveBtn.textContent='💾 저장';}
-    },
-    function(){
-      task.snapshot.ref.getDownloadURL().then(function(url){
-        var hidden=document.getElementById('f-'+key);
-        if(hidden) hidden.value=url;
-        if(urlBox){urlBox.style.display='block';urlBox.textContent=url;}
-        if(prog) prog.style.display='none';
-        if(bar) bar.style.width='0%';
-        // 업로드 완료 → 저장 버튼 복구
-        IMG_UPLOADING=false;
-        if(saveBtn){saveBtn.disabled=false;saveBtn.textContent='💾 저장';}
-      });
-    }
-  );
+  // 미리보기 먼저 표시 (원본 blob)
+  if(zone) zone.style.display='none';
+  if(prev) prev.style.display='inline-block';
+  if(overlay) overlay.classList.add('show');
+  if(procText) procText.textContent='이미지 압축 중...';
+  if(okBadge) okBadge.classList.remove('show');
+
+  // 저장 버튼 비활성화
+  IMG_UPLOADING=true;
+  if(saveBtn){saveBtn.disabled=true;saveBtn.textContent='⏳ 처리 중...';}
+
+  // Canvas로 압축 (최대 1200×900, JPEG 85%)
+  compressImage(file, 1200, 900, 0.85, function(b64){
+    // 미리보기에 압축된 이미지 표시
+    if(imgEl) imgEl.src=b64;
+
+    // hidden input에 base64 저장 (Firestore 직접 저장)
+    if(hidden) hidden.value=b64;
+
+    // 완료 UI 처리
+    if(overlay) overlay.classList.remove('show');
+    if(okBadge) okBadge.classList.add('show');
+    if(urlBox){urlBox.style.display='block';urlBox.textContent='✅ 이미지 등록됨 (저장 시 반영)';}
+
+    // 저장 버튼 즉시 복구 (네트워크 없이 로컬 처리 완료)
+    IMG_UPLOADING=false;
+    if(saveBtn){saveBtn.disabled=false;saveBtn.textContent='💾 저장';}
+  });
 }
 window.handleImgFile=handleImgFile;
 
@@ -742,10 +765,14 @@ function removeImg(key){
   }
   var urlBox=document.getElementById('url-'+key);
   if(urlBox){urlBox.style.display='none';urlBox.textContent='';}
+  var okBadge=document.getElementById('ok-badge-'+key);
+  if(okBadge) okBadge.classList.remove('show');
+  var overlay=document.getElementById('overlay-'+key);
+  if(overlay) overlay.classList.remove('show');
   // 업로드 존 다시 표시
   var zone=document.getElementById('zone-'+key);
   if(zone) zone.style.display='block';
-  // 파일 input 초기화 (같은 파일 재선택 가능하도록)
+  // 파일 input 초기화
   var fi=document.getElementById('fi-'+key);
   if(fi) fi.value='';
 }
