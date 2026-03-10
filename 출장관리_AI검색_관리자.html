@@ -6,6 +6,7 @@
 <title>출장관리 AI검색 — 관리자</title>
 <!-- Firebase & SheetJS: head에서 로드 → body 스크립트 실행 전 반드시 준비됨 -->
 <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-storage-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -134,6 +135,28 @@ header{background:#1a1f36;padding:0 24px;display:flex;align-items:center;gap:16p
 .spin{display:inline-block;width:28px;height:28px;border:3px solid #e2e8f0;border-top-color:#2563eb;border-radius:50%;animation:sp .8s linear infinite;margin-bottom:12px}
 @keyframes sp{to{transform:rotate(360deg)}}
 .empty{text-align:center;padding:40px;color:#94a3c0;font-size:13px}
+
+/* ── 이미지 업로드 ── */
+.img-upload-wrap{border:2px dashed #d0d9ee;border-radius:10px;padding:16px;margin-top:10px;text-align:center;cursor:pointer;transition:all .2s;background:#f8fafc}
+.img-upload-wrap:hover,.img-upload-wrap.dragover{border-color:#2563eb;background:#eff6ff}
+.img-upload-wrap input[type=file]{display:none}
+.img-upload-icon{font-size:28px;margin-bottom:6px}
+.img-upload-text{font-size:12px;color:#94a3c0}
+.img-upload-text strong{color:#2563eb}
+.img-preview-wrap{margin-top:10px;position:relative;display:inline-block}
+.img-preview-wrap img{max-width:100%;max-height:200px;border-radius:8px;border:1.5px solid #e2e8f0;display:block}
+.img-remove-btn{position:absolute;top:-8px;right:-8px;background:#ef4444;color:#fff;border:none;border-radius:50%;width:22px;height:22px;font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1}
+.img-progress{height:6px;background:#e2e8f0;border-radius:4px;overflow:hidden;margin-top:6px;display:none}
+.img-progress-bar{height:100%;background:linear-gradient(90deg,#2563eb,#059669);width:0%;transition:width .3s;border-radius:4px}
+.img-url-box{font-size:11px;color:#94a3c0;word-break:break-all;margin-top:4px;padding:4px 8px;background:#f1f5f9;border-radius:6px;display:none}
+/* 테이블에서 이미지 썸네일 */
+.tbl-thumb{width:36px;height:36px;object-fit:cover;border-radius:6px;border:1.5px solid #e2e8f0;cursor:pointer;transition:transform .2s}
+.tbl-thumb:hover{transform:scale(1.1)}
+/* 이미지 라이트박스 */
+.lightbox{display:none;position:fixed;inset:0;z-index:5000;background:rgba(0,0,0,.85);align-items:center;justify-content:center;padding:20px}
+.lightbox.open{display:flex}
+.lightbox img{max-width:90vw;max-height:85vh;border-radius:12px;box-shadow:0 24px 80px rgba(0,0,0,.6)}
+.lightbox-close{position:absolute;top:20px;right:24px;background:rgba(255,255,255,.15);border:none;color:#fff;font-size:24px;width:44px;height:44px;border-radius:50%;cursor:pointer;backdrop-filter:blur(8px)}
 </style>
 </head>
 <body>
@@ -235,6 +258,13 @@ header{background:#1a1f36;padding:0 24px;display:flex;align-items:center;gap:16p
   </div>
 </div>
 
+
+<!-- 라이트박스 -->
+<div class="lightbox" id="lightbox">
+  <button class="lightbox-close" id="lb-close">✕</button>
+  <img id="lb-img" src="" alt="">
+</div>
+
 <!-- ★ 메인 스크립트: body 맨 끝 → DOM + Firebase 모두 로드된 후 실행 보장 -->
 <script>
 (function(){
@@ -251,7 +281,7 @@ firebase.initializeApp({
   messagingSenderId:"424940526706",
   appId:"1:424940526706:web:9857867a77bfdfdafff6eb"
 });
-var db=firebase.firestore(), auth=firebase.auth();
+var db=firebase.firestore(), auth=firebase.auth(), storage=firebase.storage();
 
 /* ── 상태 ── */
 var CU=null, ALLOWED=[], DATA={qa:[],manual:[],tables:{},accounts:[]};
@@ -415,11 +445,12 @@ function renderQA(m,src){
   h+='<div class="toolbar">'+mkSearch('질문, 답변, 소스 검색...');
   if(!src){h+='<div class="fchips"><span class="fchip'+(FILTER==='all'?' on':'')+'" data-f="all">전체</span><span class="fchip'+(FILTER==='트리플러스'?' on':'')+'" data-f="트리플러스">트리플러스</span><span class="fchip'+(FILTER==='오큐파이'?' on':'')+'" data-f="오큐파이">오큐파이</span></div>';}
   h+='</div>';
-  h+='<div class="tbl-wrap"><table class="dtbl"><thead><tr><th style="width:85px">소스</th><th style="width:85px">카테고리</th><th>질문</th><th>답변</th><th style="width:50px">AI제외</th><th style="width:60px">관리</th></tr></thead><tbody>';
+  h+='<div class="tbl-wrap"><table class="dtbl"><thead><tr><th style="width:85px">소스</th><th style="width:85px">카테고리</th><th>질문</th><th>답변</th><th style="width:44px">이미지</th><th style="width:50px">AI제외</th><th style="width:60px">관리</th></tr></thead><tbody>';
   if(!prows.length)h+='<tr><td colspan="6" class="empty">검색 결과 없음</td></tr>';
   prows.forEach(function(r){
     var isN=LAST_NEW_ID&&r._id===LAST_NEW_ID;
-    h+='<tr'+(isN?' class="new-row"':'')+'><td>'+getQTag(r.s)+'</td><td style="font-size:11px;color:#94a3c0">'+esc(r.c||'')+'</td><td class="clip">'+esc(r.q||'')+'</td><td class="clip-lg">'+esc(r.a||'')+'</td><td>'+(r.xs?'<span class="tag t-xs">제외</span>':'')+'</td>';
+    var imgHtml=r.img?'<img src="'+r.img+'" class="tbl-thumb" title="클릭하여 확대">':'';
+    h+='<tr'+(isN?' class="new-row"':'')+'><td>'+getQTag(r.s)+'</td><td style="font-size:11px;color:#94a3c0">'+esc(r.c||'')+'</td><td class="clip">'+esc(r.q||'')+'</td><td class="clip-lg">'+esc(r.a||'')+'</td><td>'+imgHtml+'</td><td>'+(r.xs?'<span class="tag t-xs">제외</span>':'')+'</td>';
     h+='<td class="td-r"><button class="btn btn-warn btn-sm" data-edit="qa|'+r._id+'">수정</button></td></tr>';
   });
   h+='</tbody></table>'+mkPager(total)+'</div>';
@@ -448,11 +479,12 @@ function renderManEtc(m){
   h+=manTblHTML(prows,total);m.innerHTML=h;bindEvents(m);
 }
 function manTblHTML(prows,total){
-  var h='<div class="tbl-wrap"><table class="dtbl"><thead><tr><th style="width:110px">소스</th><th style="width:70px">카테고리</th><th style="width:110px">항목명</th><th>질문</th><th>답변</th><th style="width:50px">AI제외</th><th style="width:60px">관리</th></tr></thead><tbody>';
+  var h='<div class="tbl-wrap"><table class="dtbl"><thead><tr><th style="width:110px">소스</th><th style="width:70px">카테고리</th><th style="width:110px">항목명</th><th>질문</th><th>답변</th><th style="width:44px">이미지</th><th style="width:50px">AI제외</th><th style="width:60px">관리</th></tr></thead><tbody>';
   if(!prows.length)h+='<tr><td colspan="7" class="empty">검색 결과 없음</td></tr>';
   prows.forEach(function(r){
     var isN=LAST_NEW_ID&&r._id===LAST_NEW_ID;
-    h+='<tr'+(isN?' class="new-row"':'')+'><td>'+getMTag(r.s)+'</td><td style="font-size:11px;color:#94a3c0">'+esc(r.c||'')+'</td><td class="clip" style="font-size:11px;color:#4b5680">'+esc(r.it||'')+'</td><td class="clip">'+esc(r.q||'')+'</td><td class="clip-lg">'+esc(r.a||'')+'</td><td>'+(r.xs?'<span class="tag t-xs">제외</span>':'')+'</td>';
+    var mImgHtml=r.img?'<img src="'+r.img+'" class="tbl-thumb" title="클릭하여 확대">':'';
+    h+='<tr'+(isN?' class="new-row"':'')+'><td>'+getMTag(r.s)+'</td><td style="font-size:11px;color:#94a3c0">'+esc(r.c||'')+'</td><td class="clip" style="font-size:11px;color:#4b5680">'+esc(r.it||'')+'</td><td class="clip">'+esc(r.q||'')+'</td><td class="clip-lg">'+esc(r.a||'')+'</td><td>'+mImgHtml+'</td><td>'+(r.xs?'<span class="tag t-xs">제외</span>':'')+'</td>';
     h+='<td class="td-r"><button class="btn btn-warn btn-sm" data-edit="manual|'+r._id+'">수정</button></td></tr>';
   });
   return h+'</tbody></table>'+mkPager(total)+'</div>';
@@ -542,6 +574,7 @@ var QA_SCH=[
   {k:'s',l:'소스',t:'sel',opts:['트리플러스','오큐파이']},
   {k:'c',l:'카테고리',t:'sel',opts:['','정산 문의','서비스 이용문의','버그 및 오류 신고','기타']},
   {k:'q',l:'질문',tall:true},{k:'a',l:'답변',tall:true},
+  {k:'img',l:'첨부 이미지 (선택)',t:'img',req:false},
   {k:'xs',l:'AI검색 제외 (0=포함/1=제외)',t:'sel',opts:['0','1']}
 ];
 var MAN_SCH=[
@@ -549,6 +582,7 @@ var MAN_SCH=[
   {k:'c',l:'카테고리',ph:'예: 숙박, 열차, 항공'},{k:'it',l:'항목명',ph:'예: 교통비·유류비 지급 기준'},
   {k:'q',l:'질문/제목',tall:true},{k:'a',l:'답변/내용',tall:true},
   {k:'r',l:'비고 (선택)',req:false},
+  {k:'img',l:'첨부 이미지 (선택)',t:'img',req:false},
   {k:'xs',l:'AI검색 제외 (0=포함/1=제외)',t:'sel',opts:['0','1']}
 ];
 var TBL_SCH={'증빙규정':[{k:'type',l:'증빙유형'},{k:'cat',l:'분류'},{k:'case',l:'케이스'},{k:'content',l:'내용',tall:true},{k:'remark',l:'비고',req:false}],'숙박비규정':[{k:'purpose',l:'출장목적'},{k:'gubun',l:'구분'},{k:'usergrp',l:'사용자그룹'},{k:'dest',l:'행선지'},{k:'pay_type',l:'지급유형'},{k:'amount',l:'금액'},{k:'option',l:'옵션'},{k:'remark',l:'비고',req:false}],'예외거리허용구간':[{k:'from',l:'출발지'},{k:'to',l:'도착지'},{k:'type',l:'구간유형',ph:'왕복/편도'},{k:'status',l:'사용여부',ph:'사용/미사용'}],'기타교통수단구간':[{k:'from',l:'출발지'},{k:'to',l:'도착지'},{k:'amount',l:'정액요금',ph:'예: 4,600원'}]};
@@ -561,6 +595,29 @@ function mkFields(sch,data){
     var h='<div class="field"><label>'+f.l+(req?' <span class="req">*</span>':'')+'</label>';
     if(f.t==='sel'){h+='<select id="f-'+f.k+'">'+(f.opts||[]).map(function(o){return '<option value="'+o+'"'+(String(v)===String(o)?' selected':'')+'>'+(o||'-')+'</option>';}).join('')+'</select>';}
     else if(f.tall){h+='<textarea id="f-'+f.k+'" class="tall" placeholder="'+(f.ph||'')+'">'+esc(String(v))+'</textarea>';}
+    else if(f.t==='img'){
+      var hasImg=v&&v.startsWith('http');
+      h+='<div id="img-wrap-'+f.k+'">';
+      if(hasImg){
+        h+='<div class="img-preview-wrap" id="prev-'+f.k+'">';
+        h+='<img src="'+esc(v)+'" alt="첨부이미지">';
+        h+='<button class="img-remove-btn" data-rmkey="'+f.k+'">✕</button>';
+        h+='</div>';
+        h+='<input type="hidden" id="f-'+f.k+'" value="'+esc(v)+'">';
+        h+='<div class="img-url-box" id="url-'+f.k+'" style="display:block">'+esc(v)+'</div>';
+      } else {
+        h+='<div class="img-upload-wrap" id="zone-'+f.k+'" data-zonekey="'+f.k+'">';
+        h+='<input type="file" id="fi-'+f.k+'" data-filekey="'+f.k+'" accept="image/*">';
+        h+='<div class="img-upload-icon">🖼️</div>';
+        h+='<div class="img-upload-text">클릭 또는 드래그<br><strong>JPG, PNG, GIF, WebP</strong> (최대 5MB)</div>';
+        h+='</div>';
+        h+='<div class="img-progress" id="prog-'+f.k+'"><div class="img-progress-bar" id="progbar-'+f.k+'"></div></div>';
+        h+='<div class="img-preview-wrap" id="prev-'+f.k+'" style="display:none"><img src="" alt="미리보기"><button class="img-remove-btn" data-rmkey="'+f.k+'">✕</button></div>';
+        h+='<input type="hidden" id="f-'+f.k+'" value="">';
+        h+='<div class="img-url-box" id="url-'+f.k+'"></div>';
+      }
+      h+='</div>';
+    }
     else{h+='<input id="f-'+f.k+'" type="text" value="'+esc(String(v))+'" placeholder="'+(f.ph||'')+'">';}
     return h+'</div>';
   }).join('');
@@ -602,6 +659,57 @@ async function doDelete(){
   await db.collection(EDIT_COL).doc(EDIT_ID).delete();
   LAST_NEW_ID=null;closeModal();await loadAll();render();
 }
+
+/* ── 이미지 업로드 ── */
+function handleImgFile(key, file){
+  if(!file) return;
+  if(file.size > 5*1024*1024){alert('파일이 5MB를 초과합니다.'); return;}
+  // 업로드 전 미리보기 (로컬)
+  var reader=new FileReader();
+  reader.onload=function(e){
+    var prev=document.getElementById('prev-'+key);
+    if(prev){prev.style.display='inline-block';prev.querySelector('img').src=e.target.result;}
+  };
+  reader.readAsDataURL(file);
+  // Firebase Storage 업로드
+  var prog=document.getElementById('prog-'+key);
+  var bar=document.getElementById('progbar-'+key);
+  var urlBox=document.getElementById('url-'+key);
+  if(prog) prog.style.display='block';
+  var fname='images/'+Date.now()+'_'+file.name.replace(/[^a-zA-Z0-9._-]/g,'_');
+  var ref=storage.ref(fname);
+  var task=ref.put(file);
+  task.on('state_changed',
+    function(snap){
+      var pct=Math.round(snap.bytesTransferred/snap.totalBytes*100);
+      if(bar) bar.style.width=pct+'%';
+    },
+    function(err){alert('업로드 실패: '+err.message); if(prog) prog.style.display='none';},
+    function(){
+      task.snapshot.ref.getDownloadURL().then(function(url){
+        var hidden=document.getElementById('f-'+key);
+        if(hidden) hidden.value=url;
+        if(urlBox){urlBox.style.display='block';urlBox.textContent=url;}
+        if(prog) prog.style.display='none';
+        if(bar) bar.style.width='0%';
+      });
+    }
+  );
+}
+window.handleImgFile=handleImgFile;
+
+function removeImg(key){
+  var hidden=document.getElementById('f-'+key);
+  if(hidden) hidden.value='';
+  var prev=document.getElementById('prev-'+key);
+  if(prev) prev.style.display='none';
+  var urlBox=document.getElementById('url-'+key);
+  if(urlBox){urlBox.style.display='none';urlBox.textContent='';}
+  // 업로드 존 다시 표시
+  var zone=document.getElementById('zone-'+key);
+  if(zone) zone.style.display='block';
+}
+window.removeImg=removeImg;
 
 /* ── 엑셀 일괄 등록 ── */
 function openXlModal(src){
@@ -699,6 +807,42 @@ document.getElementById('xl-zone').addEventListener('dragleave', function(){ thi
 document.getElementById('xl-zone').addEventListener('drop', function(e){ e.preventDefault(); this.classList.remove('drag'); handleXlFile(e.dataTransfer.files[0]); });
 document.getElementById('xl-file').addEventListener('change', function(){ handleXlFile(this.files[0]); });
 document.querySelectorAll('.sb-item[data-tab]').forEach(function(el){ el.addEventListener('click', function(){ go(this.dataset.tab); }); });
+
+// 라이트박스
+document.getElementById('lightbox').addEventListener('click', function(e){ if(e.target===this||e.target===document.getElementById('lb-close')){this.classList.remove('open');} });
+document.getElementById('lb-close').addEventListener('click', function(){ document.getElementById('lightbox').classList.remove('open'); });
+// 라이트박스 열기 (전역 - 동적 렌더 후 클릭)
+document.addEventListener('click', function(e){
+  if(e.target.classList.contains('tbl-thumb')){
+    var lb=document.getElementById('lightbox');
+    document.getElementById('lb-img').src=e.target.src;
+    lb.classList.add('open');
+  }
+  // 이미지 제거 버튼
+  if(e.target.dataset.rmkey){removeImg(e.target.dataset.rmkey);}
+  // 이미지 업로드 존 클릭
+  if(e.target.closest('[data-zonekey]')){
+    var key=e.target.closest('[data-zonekey]').dataset.zonekey;
+    var fi=document.getElementById('fi-'+key);
+    if(fi&&e.target!==fi)fi.click();
+  }
+});
+// 파일 input change (동적)
+document.addEventListener('change', function(e){
+  if(e.target.dataset.filekey){handleImgFile(e.target.dataset.filekey, e.target.files[0]);}
+});
+// 이미지 존 드래그앤드롭 (동적)
+document.addEventListener('dragover', function(e){
+  if(e.target.closest('[data-zonekey]'))e.preventDefault();
+});
+document.addEventListener('dragleave', function(e){
+  var z=e.target.closest('[data-zonekey]');
+  if(z)z.classList.remove('dragover');
+});
+document.addEventListener('drop', function(e){
+  var z=e.target.closest('[data-zonekey]');
+  if(z){e.preventDefault();z.classList.remove('dragover');handleImgFile(z.dataset.zonekey,e.dataTransfer.files[0]);}
+});
 
 })(); // IIFE 끝
 </script>
