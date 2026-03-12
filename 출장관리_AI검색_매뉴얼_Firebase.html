@@ -68,7 +68,7 @@ header{background:var(--surface);border-bottom:1px solid var(--border);padding:1
 .card-ans{display:none;padding:0 18px 14px;border-top:1px solid var(--border)}
 .card-ans.open{display:block;padding-top:14px;animation:fadeIn .2s ease}
 .ans-label{font-size:11px;color:var(--accent2);font-weight:600;margin-bottom:6px;letter-spacing:.05em}
-.ans-text{font-size:13px;line-height:1.85;color:var(--text2);white-space:pre-wrap}
+.ans-text{font-size:13px;line-height:1.85;color:var(--text2);white-space:pre-wrap;word-break:break-word}
 .remark{font-size:12px;color:var(--text3);margin-top:8px;border-top:1px solid var(--border);padding-top:8px}
 .welcome{text-align:center;padding:56px 20px;color:var(--text3)}.welcome-icon{font-size:44px;margin-bottom:14px}
 .welcome-title{font-size:17px;color:var(--text2);font-weight:600;margin-bottom:8px}.welcome-sub{font-size:14px;line-height:1.7}
@@ -329,15 +329,24 @@ var db = firebase.firestore();
 
 // ── localStorage 캐시 설정 ──────────────────────────────────────────
 var CACHE_KEY = "triplus_kb_cache";
-var CACHE_TTL = 24 * 60 * 60 * 1000; // 24시간 (밀리초)
+var CACHE_TTL = 6 * 60 * 60 * 1000; // 6시간 (밀리초)
 
+var CACHE_VER_KEY = "triplus_kb_ver";
 function getCachedData() {
   try {
     var raw = localStorage.getItem(CACHE_KEY);
     if (!raw) return null;
     var obj = JSON.parse(raw);
+    // TTL 체크
     if (Date.now() - obj.ts > CACHE_TTL) {
       localStorage.removeItem(CACHE_KEY);
+      return null;
+    }
+    // 관리자 업데이트 버전 체크 (관리자가 저장하면 버전 키 갱신됨)
+    var adminVer = localStorage.getItem(CACHE_VER_KEY);
+    if (adminVer && obj.ver !== adminVer) {
+      localStorage.removeItem(CACHE_KEY);
+      console.log('[KB] 관리자 업데이트 감지 → 캐시 무효화');
       return null;
     }
     return obj;
@@ -361,7 +370,8 @@ function setCachedData(allItemsArr, tdObj, qaDocs, manCnt) {
       if (s.img2 && s.img2.startsWith('data:')) s.img2 = '';
       return s;
     });
-    var obj = { ts: Date.now(), items: slimItems, td: tdObj, qaDocs: slimQa, manCnt: manCnt };
+    var ver = localStorage.getItem(CACHE_VER_KEY) || String(Date.now());
+    var obj = { ts: Date.now(), ver: ver, items: slimItems, td: tdObj, qaDocs: slimQa, manCnt: manCnt };
     localStorage.setItem(CACHE_KEY, JSON.stringify(obj));
     var kb = Math.round(JSON.stringify(obj).length / 1024);
     console.log('[KB] 캐시 저장 완료 (' + kb + 'KB, TTL 24시간)');
@@ -671,6 +681,13 @@ window.gotoPage = gotoPage;
 function esc(s) {
   return (s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
 }
+function linkify(text) {
+  var escaped = esc(text);
+  // https?:// URL을 새창 링크로 변환
+  return escaped.replace(/(https?:\/\/[^\s&<>"']+)/g, function(url) {
+    return '<a href="' + url + '" target="_blank" rel="noopener noreferrer" style="color:#2563eb;text-decoration:underline;word-break:break-all;">' + url + '</a>';
+  });
+}
 function norm(s) { return (s||"").toLowerCase().replace(/\s+/g," ").trim(); }
 function tokenize(s) {
   var n = norm(s);
@@ -696,8 +713,16 @@ function hlOne(text, kw) {
   return out;
 }
 function hlTerms(text, terms) {
-  if (!text || !terms.length) return esc(text);
+  if (!text) return '';
+  // URL 링크 변환 먼저 (esc 후 처리)
   var r = esc(text);
+  // https?:// URL → 새창 링크
+  r = r.replace(/(https?:\/\/[^\s&<>"']+)/g, function(url){
+    return '<a href="'+url+'" target="_blank" rel="noopener noreferrer" style="color:#2563eb;text-decoration:underline;word-break:break-all;">'+url+'</a>';
+  });
+  // 줄바꿈 유지 (pre-wrap 대신 <br>)
+  r = r.replace(/\n/g, '<br>');
+  if (!terms.length) return r;
   var sorted = terms.slice().sort(function(a,b){return b.length-a.length;});
   for (var ti = 0; ti < sorted.length; ti++) {
     var t = sorted[ti]; if (t.length<2) continue;
