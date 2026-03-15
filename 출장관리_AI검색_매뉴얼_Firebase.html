@@ -16,12 +16,12 @@ header{background:var(--surface);border-bottom:1px solid var(--border);padding:1
 #cache-badge{background:rgba(34,197,94,.15);color:#16a34a;border:1px solid rgba(34,197,94,.3);transition:all .2s}
 #cache-badge:hover{background:rgba(34,197,94,.25);transform:scale(1.05)}
 #cache-badge.miss{background:rgba(59,130,246,.12);color:#2563eb;border:1px solid rgba(59,130,246,.25)}
-.badge{background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:3px 10px;font-size:11px;color:var(--text2);font-family:'IBM Plex Mono',monospace;white-space:nowrap}
+.badge{background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:3px 10px;font-size:11px;color:var(--text);font-family:'IBM Plex Mono',monospace;white-space:nowrap;font-weight:600}
 .badge span{color:var(--accent2);font-weight:600}
 .top-nav{background:var(--surface);border-bottom:1px solid var(--border);padding:0 32px;position:sticky;top:53px;z-index:199;display:flex;overflow-x:auto}
 .nav-tab{padding:12px 18px;font-size:13px;font-family:'Noto Sans KR',sans-serif;color:var(--text3);cursor:pointer;border:none;background:none;border-bottom:2px solid transparent;transition:all .2s;white-space:nowrap}
 .nav-tab:hover{color:var(--text2)}.nav-tab.active{color:var(--accent);border-bottom-color:var(--accent);font-weight:600}
-.page{display:none}.page.active{display:block}
+.page{display:none}.page.active{display:block;overflow-y:auto;max-height:calc(100vh - 110px);position:relative}
 .main{max-width:900px;margin:0 auto;padding:28px 24px 80px}
 .search-label{font-size:13px;color:var(--text2);margin-bottom:10px}
 .search-box{display:flex;gap:10px;margin-bottom:12px}
@@ -606,8 +606,8 @@ mark{background:rgba(79,142,247,.25);color:var(--accent);border-radius:3px;paddi
   }
 
 /* ── 국내출장 매뉴얼 탭 스크롤 ── */
-.dom-manual {max-height:calc(100vh - 120px);overflow-y:auto;padding:0 0 40px;}
-.dom-manual .toc-bar {position:sticky;top:0;z-index:10;}
+.dom-manual {padding:0 0 40px;}
+
 </style>
 </head>
 <body>
@@ -619,8 +619,8 @@ mark{background:rgba(79,142,247,.25);color:var(--accent);border-radius:3px;paddi
     <div class="logo-sub">현대자동차 트리플러스 운영대응 가이드</div>
   </div>
   <div class="hdr-right">
-    <div class="badge">매뉴얼 <span id="cntManual">-</span>건</div>
-    <div class="badge">Q&amp;A <span id="cntQA">-</span>건</div>
+    <div class="badge">매뉴얼 <span id="cntManual" style="color:#111;font-weight:700">-</span>건</div>
+    <div class="badge">Q&amp;A <span id="cntQA" style="color:#111;font-weight:700">-</span>건</div>
     <div class="badge" id="cache-badge" title="클릭하면 최신 데이터로 새로고침" onclick="clearCache()" style="cursor:pointer;display:none">⚡ 캐시</div>
   </div>
 </header>
@@ -1875,11 +1875,11 @@ async function loadFromFirestore() {
 
   for (var i = 0; i < manDocs.length; i++) {
     var m = manDocs[i];
-    allItems.push({type:"manual",source:m.s,category:m.c||"",item:m.it||"",question:m.q||"",answer:m.a||"",remark:m.r||"",img:m.img||"",img1:m.img1||"",img1_caption:m.img1_caption||"",img2:m.img2||"",img2_caption:m.img2_caption||"",xs:m.xs||0,_docId:m.id||""});
+    allItems.push({type:"manual",source:m.s,category:m.c||"",item:m.it||"",question:m.q||"",answer:m.a||"",remark:m.r||"",img:m.img||"",img_caption:m.img_caption||"",img0:m.img0||"",img1:m.img1||"",img1_caption:m.img1_caption||"",img2:m.img2||"",img2_caption:m.img2_caption||"",img3:m.img3||"",img4:m.img4||"",xs:m.xs||0,_docId:m.id||""});
   }
   for (var i = 0; i < qaDocs.length; i++) {
     var q = qaDocs[i];
-    allItems.push({type:"qa",source:q.s,category:q.c||"",item:"",question:q.q||"",answer:q.a||"",remark:"",img:q.img||"",img_caption:q.img_caption||"",img1:q.img1||"",img1_caption:q.img1_caption||"",img2:q.img2||"",img2_caption:q.img2_caption||"",xs:q.xs||0,_docId:q.id||""});
+    allItems.push({type:"qa",source:q.s,category:q.c||"",item:"",question:q.q||"",answer:q.a||"",remark:q.r||"",img:q.img||"",img_caption:q.img_caption||"",img0:q.img0||"",img1:q.img1||"",img1_caption:q.img1_caption||"",img2:q.img2||"",img2_caption:q.img2_caption||"",img3:q.img3||"",img4:q.img4||"",xs:q.xs||0,_docId:q.id||""});
   }
 
   var tblSnap = await db.collection("tables").get();
@@ -2339,39 +2339,34 @@ async function doSearch() {
     html+="<div class=\"card-score\"><div class=\"sc-wrap\"><span class=\"sc-val\">"+pct+"%</span>";
     html+="<div class=\"sc-bar\"><div class=\"sc-fill\" style=\"width:"+pct+"%\"></div></div></div>";
     html+="<span class=\"arrow\">\u25bc</span></div></div>";
+    html+="</div>";
     html+="<div class=\"card-ans\" id=\"ans-"+x.idx+"\">";
     html+="<div class=\"ans-header\"><div class=\"ans-label\">\u2705 답변</div><button class=\"copy-btn\" onclick=\"copyAns(\u0027"+x.idx+"\u0027,event)\">\uD83D\uDCCB 복사</button></div>";
     html+="<div class=\"ans-text\">"+aHtml+"</div>";
     if(item.remark) html+="<div class=\"remark\">\uD83D\uDCCE "+hlTerms(item.remark,terms)+"</div>";
-    // 참고 이미지 (관리자에서 Storage URL로 업로드한 이미지)
-    if (item.img) {
-      var imgUrl = esc(item.img);
-      var imgCap = esc(item.img_caption||'');
+    // 참고 이미지 - img, img0~img4 통합 (URL 또는 base64)
+    var _imgs = [];
+    if(item.img)  _imgs.push({src:item.img,  cap:item.img_caption||''});
+    if(item.img0) _imgs.push({src:item.img0, cap:''});
+    if(item.img1) _imgs.push({src:item.img1, cap:item.img1_caption||''});
+    if(item.img2) _imgs.push({src:item.img2, cap:item.img2_caption||''});
+    if(item.img3) _imgs.push({src:item.img3, cap:''});
+    if(item.img4) _imgs.push({src:item.img4, cap:''});
+    if(_imgs.length > 0) {
       html += '<div class="ref-imgs">';
       html += '<div style="font-size:11px;color:var(--acc2);font-weight:700;width:100%;margin-bottom:4px">\uD83D\uDDBC\uFE0F 첨부 이미지 (클릭하면 확대)</div>';
-      html += '<div class="ref-thumb url-img-thumb" data-imgsrc="' + imgUrl + '" data-imgcap="' + imgCap + '">';
-      html += '<img src="' + imgUrl + '" alt="첨부이미지" style="max-height:120px;object-fit:cover">';
-      if (item.img_caption) html += '<div class="ref-thumb-label">' + imgCap + '</div>';
-      html += '</div>';
-      html += '</div>';
-    }
-    // item 직접 이미지 (img1, img2) - base64
-    if (item.img1 || item.img2) {
-      html += "<div class=\"ref-imgs\">";
-      html += "<div style=\"font-size:11px;color:var(--acc2);font-weight:700;width:100%;margin-bottom:4px\">\uD83D\uDDBC\uFE0F \uCC38\uACE0 \uC774\uBBF8\uC9C0 (\uD074\uB9AD\uD558\uBA74 \uD655\uB300)</div>";
-      if (item.img1) {
-        html += "<div class=\"ref-thumb\" onclick=\"openImgModal('data:image/png;base64,"+item.img1+"','"+esc(item.img1_caption)+"')\">";
-        html += "<img src=\"data:image/png;base64,"+item.img1+"\" alt=\""+esc(item.img1_caption)+"\">";
-        html += "<div class=\"ref-thumb-label\">"+esc(item.img1_caption)+"</div>";
-        html += "</div>";
+      for(var _ii=0;_ii<_imgs.length;_ii++){
+        var _src = _imgs[_ii].src;
+        var _cap = esc(_imgs[_ii].cap);
+        // base64는 data: prefix 없으면 추가
+        var _modalSrc = (_src.startsWith('http')||_src.startsWith('data:')) ? _src : 'data:image/png;base64,'+_src;
+        var _dispSrc  = (_src.startsWith('http')||_src.startsWith('data:')) ? _src : 'data:image/png;base64,'+_src;
+        html += '<div class="ref-thumb url-img-thumb" data-imgsrc="'+esc(_modalSrc)+'" data-imgcap="'+_cap+'">';
+        html += '<img src="'+esc(_dispSrc)+'" alt="'+_cap+'" style="max-height:120px;object-fit:cover">';
+        if(_imgs[_ii].cap) html += '<div class="ref-thumb-label">'+_cap+'</div>';
+        html += '</div>';
       }
-      if (item.img2) {
-        html += "<div class=\"ref-thumb\" onclick=\"openImgModal('data:image/png;base64,"+item.img2+"','"+esc(item.img2_caption)+"')\">";
-        html += "<img src=\"data:image/png;base64,"+item.img2+"\" alt=\""+esc(item.img2_caption)+"\">";
-        html += "<div class=\"ref-thumb-label\">"+esc(item.img2_caption)+"</div>";
-        html += "</div>";
-      }
-      html += "</div>";
+      html += '</div>';
     }
     var refKey = getRefImgKey(item);
     if (refKey && REF_IMGS[refKey]) {
@@ -2386,7 +2381,7 @@ async function doSearch() {
       }
       html += "</div>";
     }
-    html+="</div></div>";
+    html+="</div>";
   }
   container.innerHTML=html;
 }
@@ -2410,7 +2405,23 @@ document.addEventListener("DOMContentLoaded", function() {
     a.addEventListener('click', function(e) {
       e.preventDefault();
       var target = document.querySelector(this.getAttribute('href'));
-      if (target) target.scrollIntoView({behavior:'smooth', block:'start'});
+      if (target) {
+        var page = document.getElementById('page-domman');
+        if(page) page.scrollTo({top: target.offsetTop - 60, behavior:'smooth'});
+        else target.scrollIntoView({behavior:'smooth', block:'start'});
+      }
+    });
+  });
+  // 시내교통비 내부 앵커 스크롤
+  document.querySelectorAll('.sinai-manual a[href^="#"]').forEach(function(a) {
+    a.addEventListener('click', function(e) {
+      e.preventDefault();
+      var target = document.querySelector(this.getAttribute('href'));
+      if (target) {
+        var page = document.getElementById('page-sinai');
+        if(page) page.scrollTo({top: target.offsetTop - 60, behavior:'smooth'});
+        else target.scrollIntoView({behavior:'smooth', block:'start'});
+      }
     });
   });
   document.getElementById("searchInput").addEventListener("keydown", function(e){if(e.key==="Enter") doSearch();});
@@ -2418,8 +2429,10 @@ document.addEventListener("DOMContentLoaded", function() {
   document.getElementById("results").addEventListener("click", function(e) {
     var thumb = e.target.closest(".url-img-thumb");
     if (thumb) {
+      e.stopPropagation(); // 카드 토글 이벤트 버블링 방지
       openImgModal(thumb.dataset.imgsrc, thumb.dataset.imgcap || "");
     }
+    // 복사 버튼도 버블링 방지 (이미 copyAns에서 처리)
   });
 });
 
@@ -2515,7 +2528,7 @@ init();
 
 <!-- 이미지 모달 -->
 <div class="img-modal" id="imgModal" onclick="closeImgModal(event)">
-  <div class="img-modal-close" onclick="document.getElementById('imgModal').classList.remove('open')">✕</div>
+  <div class="img-modal-close" onclick="event.stopPropagation();document.getElementById('imgModal').classList.remove('open')">✕</div>
   <img id="imgModalSrc" src="" alt="">
   <div class="img-modal-caption" id="imgModalCaption"></div>
 </div>
@@ -2523,8 +2536,6 @@ init();
 <!-- 시내교통비 신청 매뉴얼 스타일 -->
 <style>
 .sinai-manual {
-  overflow-y: auto;
-  max-height: calc(100vh - 120px);
   padding: 0;
 }
 

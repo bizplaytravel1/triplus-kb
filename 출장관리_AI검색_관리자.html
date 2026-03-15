@@ -307,7 +307,7 @@ var db=firebase.firestore(), auth=firebase.auth(), storage=firebase.storage();
 /* ── 상태 ── */
 var CU=null, ALLOWED=[], DATA={qa:[],manual:[],tables:{},accounts:[]};
 var TAB='qa', PAGE=50, CUR=1, KW='', FILTER='all';
-var EDIT_ID=null, EDIT_COL=null, EDIT_TBL=null, LAST_NEW_ID=null, XL_ROWS=[], XL_SRC='트리플러스';
+var EDIT_ID=null, EDIT_COL=null, EDIT_TBL=null, LAST_NEW_ID=null, XL_ROWS=[], XL_SRC='트리플러스', XL_MODE='qa', XL_TNAME='';
 
 /* ── 디바운스 ── */
 function debounce(fn,d){var t=null;return function(){var a=arguments,ctx=this;clearTimeout(t);t=setTimeout(function(){fn.apply(ctx,a);},d);};}
@@ -501,6 +501,7 @@ function renderMan(m,sources,title){
   var h='<div class="page-hdr"><div class="page-title">'+title+' <small>총 '+total+'건</small></div>';
   h+='<div class="page-actions">';
   h+='<button class="btn-dl-excel" data-dl-excel="manual|'+srcKey+'">⬇️ 엑셀 다운로드</button>';
+  h+='<button class="btn btn-purple" data-xl="manual|'+defSrc+'">📊 엑셀 일괄 등록</button>';
   h+='<button class="btn btn-success" data-add="manual|'+defSrc+'">+ 항목 추가</button>';
   h+='</div></div>';
   h+='<div class="toolbar">'+mkSearch('소스, 카테고리, 질문, 답변 검색...')+'</div>';
@@ -544,6 +545,7 @@ function renderTbl(m,tname,title){
   var h='<div class="page-hdr"><div class="page-title">'+title+' <small>총 '+total+'건</small></div>';
   h+='<div class="page-actions">';
   h+='<button class="btn-dl-excel" data-dl-excel="tables|'+tname+'">⬇️ 엑셀 다운로드</button>';
+  h+='<button class="btn btn-purple" data-xl="tables|'+tname+'">📊 엑셀 일괄 등록</button>';
   h+='<button class="btn btn-success" data-add="tables|'+tname+'">+ 항목 추가</button>';
   h+='</div></div>';
   h+='<div class="toolbar">'+mkSearch('검색...')+'</div>';
@@ -798,6 +800,8 @@ function openAdd(col,src){
 function openEdit(col,id,tbl){
   EDIT_ID=id;EDIT_COL=col;EDIT_TBL=tbl||null;
   var data=col==='qa'?DATA.qa.find(function(r){return r._id===id;}):col==='manual'?DATA.manual.find(function(r){return r._id===id;}):(DATA.tables[tbl]||[]).find(function(r){return r._id===id;});
+  // 기존 'img' 단일 필드 → img0으로 마이그레이션 (하위 호환)
+  if(data && data.img && !data.img0) { data = Object.assign({}, data, {img0: data.img}); }
   document.getElementById('modal-title').textContent='✏️ 항목 수정';
   document.getElementById('modal-body').innerHTML=mkFields(getSch(),data);
   document.getElementById('del-btn').style.display='inline-block';
@@ -937,7 +941,15 @@ window.removeImg=removeImg;
 
 /* ── 엑셀 일괄 등록 ── */
 function openXlModal(src){
-  XL_SRC=src||'트리플러스';XL_ROWS=[];
+  // src 형식: "qa|트리플러스" 또는 "manual|출장정책" 또는 "tables|증빙규정"
+  var parts=(src||'qa|트리플러스').split('|');
+  XL_MODE=parts[0]||'qa';
+  XL_SRC=parts[1]||'트리플러스';
+  XL_TNAME=(XL_MODE==='tables')?XL_SRC:'';
+  XL_ROWS=[];
+  // 모달 타이틀 변경
+  var titles={'qa':'Q&A 일괄 등록 (엑셀)','manual':'매뉴얼 일괄 등록 (엑셀)','tables':XL_SRC+' 일괄 등록 (엑셀)'};
+  document.querySelector('#xl-modal .modal-title').textContent='📊 '+(titles[XL_MODE]||'일괄 등록');
   document.getElementById('xl-stat').style.display='none';
   document.getElementById('xl-preview').style.display='none';
   document.getElementById('xl-upload-btn').style.display='none';
@@ -950,16 +962,44 @@ function openXlModal(src){
 function closeXlModal(){document.getElementById('xl-modal').classList.remove('open');}
 function downloadSample(){
   var wb=XLSX.utils.book_new();
-  var data=[
-    ['소스(s)','카테고리(c)','질문(q)','답변(a)','AI검색제외(xs 0또는1)'],
-    ['트리플러스','정산 문의','출장정산서는 어떻게 제출하나요?','트리플러스 시스템에서 출장 → 정산 메뉴를 통해 제출합니다.','0'],
-    ['오큐파이','서비스 이용문의','출장 예약 취소는 어떻게 하나요?','예약 상세 화면에서 취소 버튼을 클릭하시면 됩니다.','0'],
-    ['트리플러스','버그 및 오류 신고','로그인이 안 됩니다.','브라우저 캐시 삭제 후 재시도해 주세요. 계속 문제 시 IT 헬프데스크에 문의하세요.','0'],
-  ];
-  var ws=XLSX.utils.aoa_to_sheet(data);
-  ws['!cols']=[{wch:14},{wch:16},{wch:40},{wch:60},{wch:14}];
-  XLSX.utils.book_append_sheet(wb,ws,'Q&A 등록양식');
-  XLSX.writeFile(wb,'QA_일괄등록_양식.xlsx');
+  var ws,data;
+  if(XL_MODE==='manual'){
+    data=[
+      ['소스(s)','카테고리(c)','항목명(it)','질문/제목(q)','답변/내용(a)','비고(r)','AI검색제외(xs)'],
+      ['출장정책','숙박','국내 숙박비 기준','국내 출장 시 숙박비 한도는?','1박 기준 서울 120,000원, 지방 100,000원입니다.','출장규정 참고','0'],
+      ['남양연구소','교통비','시내교통비 신청','시내교통비는 어떻게 신청하나요?','트리플러스 → 시내교통비 메뉴에서 신청 가능합니다.','','0'],
+      ['해외출장을위한이동','항공','항공권 예약','해외출장 항공권 예약 방법','트리플러스 앱에서 해외출장 → 항공 예약으로 진행하세요.','','0'],
+    ];
+    ws=XLSX.utils.aoa_to_sheet(data);
+    ws['!cols']=[{wch:18},{wch:14},{wch:20},{wch:40},{wch:60},{wch:20},{wch:10}];
+    XLSX.utils.book_append_sheet(wb,ws,'매뉴얼 등록양식');
+    XLSX.writeFile(wb,'매뉴얼_일괄등록_양식.xlsx');
+  } else if(XL_MODE==='tables'){
+    var tname=XL_TNAME;
+    var sch=TBL_SCH[tname]||[];
+    var heads=sch.map(function(f){return f.l+'('+f.k+')';});
+    var sampleRow=sch.map(function(f){
+      var samples={'type':'숙박비','cat':'국내출장','case':'일반','content':'내용예시','remark':'비고예시','purpose':'국내출장','gubun':'일반','usergrp':'일반직원','dest':'서울','pay_type':'현금','amount':'100000','option':'','from':'서울','to':'부산','status':'사용'};
+      return samples[f.k]||'';
+    });
+    data=[heads,sampleRow];
+    ws=XLSX.utils.aoa_to_sheet(data);
+    ws['!cols']=heads.map(function(){return {wch:18};});
+    XLSX.utils.book_append_sheet(wb,ws,tname+'_등록양식');
+    XLSX.writeFile(wb,tname+'_일괄등록_양식.xlsx');
+  } else {
+    // QA (기존)
+    data=[
+      ['소스(s)','카테고리(c)','질문(q)','답변(a)','비고(r)','AI검색제외(xs 0또는1)'],
+      ['트리플러스','정산 문의','출장정산서는 어떻게 제출하나요?','트리플러스 시스템에서 출장 → 정산 메뉴를 통해 제출합니다.','','0'],
+      ['오큐파이','서비스 이용문의','출장 예약 취소는 어떻게 하나요?','예약 상세 화면에서 취소 버튼을 클릭하시면 됩니다.','','0'],
+      ['트리플러스','버그 및 오류 신고','로그인이 안 됩니다.','브라우저 캐시 삭제 후 재시도해 주세요.','IT 헬프데스크 문의 가능','0'],
+    ];
+    ws=XLSX.utils.aoa_to_sheet(data);
+    ws['!cols']=[{wch:14},{wch:16},{wch:40},{wch:60},{wch:20},{wch:14}];
+    XLSX.utils.book_append_sheet(wb,ws,'Q&A 등록양식');
+    XLSX.writeFile(wb,'QA_일괄등록_양식.xlsx');
+  }
 }
 function handleXlFile(file){
   if(!file)return;
@@ -970,12 +1010,32 @@ function handleXlFile(file){
       var ws=wb.Sheets[wb.SheetNames[0]];
       var raw=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
       if(raw.length<2){showXlMsg('데이터가 없습니다.',true);return;}
-      var rows=raw.slice(1).filter(function(r){return r[2]||r[3];}).map(function(r){return {s:String(r[0]||XL_SRC).trim()||XL_SRC,c:String(r[1]||'').trim(),q:String(r[2]||'').trim(),a:String(r[3]||'').trim(),xs:parseInt(r[4])||0};}).filter(function(r){return r.q&&r.a;});
+      var rows=[];
+      if(XL_MODE==='manual'){
+        // 소스,카테고리,항목명,질문,답변,비고,AI제외
+        rows=raw.slice(1).filter(function(r){return r[3]||r[4];}).map(function(r){
+          return {s:String(r[0]||XL_SRC).trim()||XL_SRC,c:String(r[1]||'').trim(),it:String(r[2]||'').trim(),q:String(r[3]||'').trim(),a:String(r[4]||'').trim(),r:String(r[5]||'').trim(),xs:parseInt(r[6])||0};
+        }).filter(function(r){return r.q||r.a;});
+      } else if(XL_MODE==='tables'){
+        var sch=TBL_SCH[XL_TNAME]||[];
+        rows=raw.slice(1).filter(function(r){return r.some(function(v){return v;});}).map(function(r){
+          var obj={tableName:XL_TNAME};
+          sch.forEach(function(f,i){obj[f.k]=String(r[i]||'').trim();});
+          return obj;
+        });
+      } else {
+        // QA: 소스,카테고리,질문,답변,비고,AI제외
+        rows=raw.slice(1).filter(function(r){return r[2]||r[3];}).map(function(r){
+          return {s:String(r[0]||XL_SRC).trim()||XL_SRC,c:String(r[1]||'').trim(),q:String(r[2]||'').trim(),a:String(r[3]||'').trim(),r:String(r[4]||'').trim(),xs:parseInt(r[5])||0};
+        }).filter(function(r){return r.q&&r.a;});
+      }
       XL_ROWS=rows;
       var se=document.getElementById('xl-stat');se.innerHTML='총 <strong>'+rows.length+'건</strong> 인식됨';se.style.display='block';
-      var prev='<table><tr><th>소스</th><th>카테고리</th><th>질문</th><th>답변</th><th>AI제외</th></tr>';
-      rows.slice(0,10).forEach(function(r){prev+='<tr><td>'+esc(r.s)+'</td><td>'+esc(r.c)+'</td><td>'+esc(r.q.slice(0,40))+'</td><td>'+esc(r.a.slice(0,50))+'</td><td>'+r.xs+'</td></tr>';});
-      if(rows.length>10)prev+='<tr><td colspan="5" style="color:#94a3c0;text-align:center">... 외 '+(rows.length-10)+'건</td></tr>';
+      // 미리보기 테이블
+      var previewKeys=XL_MODE==='manual'?['s','c','it','q','a']:XL_MODE==='tables'?(TBL_C[XL_TNAME]||[]):['s','c','q','a'];
+      var prev='<table><tr>'+previewKeys.map(function(k){return '<th>'+k+'</th>';}).join('')+'</tr>';
+      rows.slice(0,10).forEach(function(r){prev+='<tr>'+previewKeys.map(function(k){return '<td>'+esc(String(r[k]||'').slice(0,40))+'</td>';}).join('')+'</tr>';});
+      if(rows.length>10)prev+='<tr><td colspan="'+previewKeys.length+'" style="color:#94a3c0;text-align:center">... 외 '+(rows.length-10)+'건</td></tr>';
       prev+='</table>';
       var pe=document.getElementById('xl-preview');pe.innerHTML=prev;pe.style.display='block';
       document.getElementById('xl-upload-btn').style.display='inline-block';
@@ -993,7 +1053,9 @@ async function doXlUpload(){
     for(var i=0;i<XL_ROWS.length;i+=400){
       var chunk=XL_ROWS.slice(i,i+400);
       var batch=db.batch();
-      chunk.forEach(function(row){var nid='qa_xl_'+Date.now()+'_'+Math.random().toString(36).slice(2,7);row.id=nid;lastId=nid;batch.set(db.collection('qa').doc(nid),row);});
+      var colName=XL_MODE==='manual'?'manual':XL_MODE==='tables'?'tables':'qa';
+      var prefix=XL_MODE==='manual'?'man_xl_':XL_MODE==='tables'?'tbl_xl_':'qa_xl_';
+      chunk.forEach(function(row){var nid=prefix+Date.now()+'_'+Math.random().toString(36).slice(2,7);row.id=nid;lastId=nid;batch.set(db.collection(colName).doc(nid),row);});
       await batch.commit();
       done+=chunk.length;bar.style.width=Math.round(done/total*100)+'%';
     }
