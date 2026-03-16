@@ -626,6 +626,7 @@ mark{background:rgba(79,142,247,.25);color:var(--accent);border-radius:3px;paddi
 </header>
 
 <nav class="top-nav">
+  <button class="nav-tab" id="ntab-chatbot" onclick="gotoPage('chatbot')">💬 AI 챗봇</button>
   <button class="nav-tab active" id="ntab-search" onclick="gotoPage('search')">&#128269; AI 검색</button>
   <button class="nav-tab" id="ntab-jungbig" onclick="gotoPage('jungbig')">&#128196; 증빙규정</button>
   <button class="nav-tab" id="ntab-sukbak" onclick="gotoPage('sukbak')">&#127968; 숙박비규정</button>
@@ -2010,7 +2011,29 @@ function renderNanyang() {
     out += '<span class="ov-title">'+esc(item.question)+'</span>';
     out += '<span style="margin-left:auto;font-size:12px;color:var(--text3);flex-shrink:0" class="ny-arrow-'+cardId+'">&#9660;</span>';
     out += '</div>';
-    out += '<div class="ov-body ny-body-'+cardId+'" style="display:none">'+ansHtml+rem+'</div>';
+    // 이미지 렌더 (img, img0~img4 — URL 또는 base64 모두 처리)
+    var _nyImgs = [];
+    var _nySrcs = [item.img, item.img0, item.img1, item.img2, item.img3, item.img4];
+    var _nyCaps = [item.img_caption||'', '', item.img1_caption||'', item.img2_caption||'', '', ''];
+    for(var _ni=0; _ni<_nySrcs.length; _ni++){
+      if(_nySrcs[_ni]) _nyImgs.push({src:_nySrcs[_ni], cap:_nyCaps[_ni]||''});
+    }
+    var imgHtml = '';
+    if(_nyImgs.length){
+      imgHtml += '<div class="ref-imgs">';
+      imgHtml += '<div style="font-size:11px;color:var(--accent2);font-weight:700;margin-bottom:4px">🖼️ 첨부 이미지 (클릭하면 확대)</div>';
+      for(var _ni2=0; _ni2<_nyImgs.length; _ni2++){
+        var _src = _nyImgs[_ni2].src;
+        var _cap = esc(_nyImgs[_ni2].cap);
+        var _fullSrc = (_src.startsWith('http')||_src.startsWith('data:')) ? _src : 'data:image/png;base64,'+_src;
+        imgHtml += '<div class="ref-thumb ny-thumb" data-imgsrc="'+esc(_fullSrc)+'" data-imgcap="'+_cap+'">';
+        imgHtml += '<img src="'+esc(_fullSrc)+'" alt="'+_cap+'" style="max-height:120px;object-fit:cover">';
+        if(_nyImgs[_ni2].cap) imgHtml += '<div class="ref-thumb-label">'+_cap+'</div>';
+        imgHtml += '</div>';
+      }
+      imgHtml += '</div>';
+    }
+    out += '<div class="ov-body ny-body-'+cardId+'" style="display:none">'+ansHtml+rem+imgHtml+'</div>';
     out += '</div>';
   }
   if(!out) out = '<p style="padding:40px;text-align:center;color:var(--text2)">\uAC80\uC0C9 \uACB0\uACFC\uAC00 \uC5C6\uC2B5\uB2C8\uB2E4.</p>';
@@ -2030,6 +2053,21 @@ function nyToggle(cardId) {
   body.style.display = open ? 'none' : 'block';
   if(arrow) arrow.innerHTML = open ? '&#9660;' : '&#9650;';
 }
+
+// 남양 이미지 썸네일 클릭 이벤트 위임
+(function(){
+  var nyBody = document.getElementById('ny-body');
+  if(nyBody){
+    nyBody.addEventListener('click', function(e){
+      var thumb = e.target.closest('.ny-thumb');
+      if(thumb){
+        var src = thumb.getAttribute('data-imgsrc');
+        var cap = thumb.getAttribute('data-imgcap')||'';
+        if(src && window.openImgModal) openImgModal(src, cap);
+      }
+    });
+  }
+})();
 
 
 
@@ -2128,6 +2166,7 @@ async function init() {
     renderGita();
     document.getElementById("initLoading").style.display = "none";
     document.getElementById("welcome").style.display = "block";
+
   } catch(e) {
     console.error("[KB] 로딩 오류:", e);
     document.getElementById("initLoading").textContent = "❌ 오류: " + e.message + " (F12 콘솔 확인)";
@@ -2149,6 +2188,7 @@ function gotoPage(name) {
   if (name === "gita")    renderGita();
   if (name === "overseas") renderOverseas();
   if (name === "nanyang")  renderNanyang();
+  if (name === "chatbot") { /* chatbot 페이지는 별도 초기화 없음 */ }
 }
 window.gotoPage = gotoPage;
 
@@ -3615,6 +3655,421 @@ init();
 
 </div>
 </div>
+
+
+<!-- ══════════════════════════════════════════════
+     AI 챗봇 페이지
+══════════════════════════════════════════════ -->
+<div class="page" id="page-chatbot">
+<style>
+/* ── 챗봇 레이아웃 ── */
+#chatbot-wrap{display:flex;flex-direction:column;height:calc(100vh - 110px);max-width:800px;margin:0 auto;padding:0}
+#chatbot-hdr{padding:16px 20px 12px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;background:var(--surface);border-radius:0}
+.chatbot-title{display:flex;align-items:center;gap:10px}
+.chatbot-title-icon{width:36px;height:36px;background:linear-gradient(135deg,var(--accent),var(--accent2));border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+.chatbot-title-text{font-size:15px;font-weight:700;color:var(--text)}
+.chatbot-title-sub{font-size:11px;color:var(--text3);margin-top:2px}
+#chatbot-clear-btn{background:none;border:1px solid var(--border);border-radius:8px;padding:6px 12px;font-size:12px;color:var(--text3);cursor:pointer;font-family:'Noto Sans KR',sans-serif;transition:all .15s;display:flex;align-items:center;gap:5px}
+#chatbot-clear-btn:hover{border-color:#ef4444;color:#ef4444}
+/* ── 메시지 영역 ── */
+#chatbot-messages{flex:1;overflow-y:auto;padding:20px;display:flex;flex-direction:column;gap:16px;scroll-behavior:smooth}
+/* ── 웰컴 ── */
+.chat-welcome{text-align:center;padding:32px 16px;color:var(--text3)}
+.chat-welcome-icon{font-size:48px;margin-bottom:12px}
+.chat-welcome-title{font-size:17px;font-weight:700;color:var(--text);margin-bottom:8px}
+.chat-welcome-sub{font-size:13px;line-height:1.8;margin-bottom:20px}
+.chat-suggestions{display:flex;flex-wrap:wrap;gap:8px;justify-content:center}
+.chat-sugg{background:var(--surface);border:1.5px solid var(--border);border-radius:20px;padding:7px 14px;font-size:12px;cursor:pointer;font-family:'Noto Sans KR',sans-serif;color:var(--text2);transition:all .15s}
+.chat-sugg:hover{border-color:var(--accent);color:var(--accent);background:rgba(37,99,235,.04)}
+/* ── 말풍선 ── */
+.chat-row{display:flex;gap:10px;align-items:flex-end}
+.chat-row.user{flex-direction:row-reverse}
+.chat-avatar{width:32px;height:32px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:15px}
+.chat-avatar.ai{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff}
+.chat-avatar.user{background:var(--surface2);border:1px solid var(--border)}
+.chat-bubble{max-width:72%;padding:12px 16px;border-radius:18px;font-size:14px;line-height:1.75;word-break:break-word}
+.chat-bubble.user{background:var(--accent);color:#fff;border-bottom-right-radius:4px}
+.chat-bubble.ai{background:var(--surface);border:1px solid var(--border);color:var(--text);border-bottom-left-radius:4px;white-space:pre-wrap}
+.chat-bubble.ai a{color:var(--accent);text-decoration:underline}
+.chat-time{font-size:10px;color:var(--text3);margin-top:4px;text-align:right}
+.chat-row.user .chat-time{text-align:left}
+/* ── 소스 카드 ── */
+.chat-sources{margin-top:10px;display:flex;flex-direction:column;gap:6px}
+.chat-src-label{font-size:11px;color:var(--text3);font-weight:600;margin-bottom:2px}
+.chat-src-card{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:9px 12px;cursor:pointer;transition:all .15s}
+.chat-src-card:hover{border-color:var(--accent);background:rgba(37,99,235,.04)}
+.chat-src-top{display:flex;align-items:center;gap:7px;margin-bottom:4px}
+.chat-src-q{font-size:12px;color:var(--text);font-weight:600;line-height:1.5;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.chat-src-a{font-size:11px;color:var(--text2);line-height:1.5;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;margin-top:2px}
+/* ── 타이핑 인디케이터 ── */
+.typing-indicator{display:flex;align-items:center;gap:5px;padding:12px 16px;background:var(--surface);border:1px solid var(--border);border-radius:18px;border-bottom-left-radius:4px;width:fit-content}
+.typing-dot{width:7px;height:7px;border-radius:50%;background:var(--text3);animation:typingBounce 1.2s infinite}
+.typing-dot:nth-child(2){animation-delay:.2s}
+.typing-dot:nth-child(3){animation-delay:.4s}
+@keyframes typingBounce{0%,60%,100%{transform:translateY(0)}30%{transform:translateY(-6px)}}
+/* ── 에러 ── */
+.chat-bubble.error{background:#fef2f2;border-color:#fecaca;color:#dc2626}
+/* ── 이미지 첨부 표시 ── */
+.chat-imgs{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.chat-img-thumb{width:56px;height:56px;object-fit:cover;border-radius:8px;border:1.5px solid var(--border);cursor:pointer;transition:transform .2s}
+.chat-img-thumb:hover{transform:scale(1.08)}
+/* ── 입력창 ── */
+#chatbot-input-area{padding:14px 20px 16px;border-top:1px solid var(--border);background:var(--surface);flex-shrink:0}
+.chat-input-wrap{display:flex;gap:10px;align-items:flex-end;background:var(--bg);border:1.5px solid var(--border);border-radius:16px;padding:10px 14px;transition:border-color .2s}
+.chat-input-wrap:focus-within{border-color:var(--accent);box-shadow:0 0 0 3px rgba(37,99,235,.1)}
+#chatbot-input{flex:1;border:none;background:none;outline:none;font-family:'Noto Sans KR',sans-serif;font-size:14px;color:var(--text);resize:none;min-height:22px;max-height:120px;line-height:1.6;overflow-y:auto}
+#chatbot-input::placeholder{color:var(--text3)}
+#chatbot-send{background:var(--accent);color:#fff;border:none;border-radius:10px;width:38px;height:38px;cursor:pointer;transition:all .15s;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:16px}
+#chatbot-send:hover{background:#1d4ed8;transform:scale(1.05)}
+#chatbot-send:disabled{background:var(--surface2);color:var(--text3);cursor:not-allowed;transform:none}
+.chat-input-hint{font-size:11px;color:var(--text3);margin-top:7px;text-align:center}
+</style>
+
+<div id="chatbot-wrap">
+  <div id="chatbot-hdr">
+    <div class="chatbot-title">
+      <div class="chatbot-title-icon">💬</div>
+      <div>
+        <div class="chatbot-title-text">출장관리 AI 챗봇</div>
+        <div class="chatbot-title-sub">출장 관련 질문을 자유롭게 물어보세요</div>
+      </div>
+    </div>
+    <button id="chatbot-clear-btn" onclick="chatClear()">🗑️ 대화 초기화</button>
+  </div>
+
+  <div id="chatbot-messages">
+    <div class="chat-welcome" id="chat-welcome">
+      <div class="chat-welcome-icon">✈️</div>
+      <div class="chat-welcome-title">출장관리 AI 챗봇입니다</div>
+      <div class="chat-welcome-sub">출장비 정산, 숙박비 기준, 증빙서류 등<br>출장 관련 무엇이든 자유롭게 물어보세요.</div>
+      <div class="chat-suggestions">
+        <span class="chat-sugg" onclick="chatSuggest(this.textContent)">숙박비 상한액이 얼마예요?</span>
+        <span class="chat-sugg" onclick="chatSuggest(this.textContent)">해외출장 증빙서류는 뭐가 필요한가요?</span>
+        <span class="chat-sugg" onclick="chatSuggest(this.textContent)">50km 미만 출장도 교통비 받을 수 있나요?</span>
+        <span class="chat-sugg" onclick="chatSuggest(this.textContent)">트리플러스 앱 사용 방법 알려주세요</span>
+        <span class="chat-sugg" onclick="chatSuggest(this.textContent)">출장 정산은 며칠 안에 해야 하나요?</span>
+      </div>
+    </div>
+  </div>
+
+  <div id="chatbot-input-area">
+    <div class="chat-input-wrap">
+      <textarea id="chatbot-input" placeholder="출장 관련 질문을 입력하세요..." rows="1"></textarea>
+      <button id="chatbot-send" onclick="chatSend()">➤</button>
+    </div>
+    <div class="chat-input-hint">Enter로 전송 · Shift+Enter로 줄바꿈</div>
+  </div>
+</div>
+</div>
+
+<script>
+/* ══════════════════════════════════════════
+   AI 챗봇 — Firebase db 직접 사용 (전역 db 공유)
+══════════════════════════════════════════ */
+(function(){
+
+var CHAT_HISTORY = [];
+var CHAT_ITEMS   = [];
+var CHAT_LOADED  = false;
+var CHAT_LOADING = false;
+
+/* ── Firestore에서 챗봇 데이터 로드 (db는 메인 스크립트의 전역 변수) ── */
+async function chatLoadData(){
+  if(CHAT_LOADED) return true;
+  if(CHAT_LOADING){
+    return new Promise(function(resolve){
+      var t=setInterval(function(){ if(CHAT_LOADED){clearInterval(t);resolve(true);} },100);
+    });
+  }
+  CHAT_LOADING = true;
+  try{
+    // 전역 db (Firebase 메인 스크립트에서 초기화된 것) 사용
+    var dbRef = window.db || db;
+
+    // localStorage 캐시 우선 확인
+    try{
+      var cached = localStorage.getItem('triplus_chatbot_cache');
+      if(cached){
+        var obj = JSON.parse(cached);
+        // 24시간 TTL
+        if(Date.now() - obj.ts < 24*60*60*1000){
+          CHAT_ITEMS = obj.items;
+          CHAT_LOADED = true;
+          CHAT_LOADING = false;
+          console.log('[챗봇] 캐시 히트 —', CHAT_ITEMS.length, '건');
+          return true;
+        }
+      }
+    }catch(ce){}
+
+    console.log('[챗봇] Firestore 로드 시작...');
+    var [qaSnap, manSnap] = await Promise.all([
+      dbRef.collection('qa').get(),
+      dbRef.collection('manual').get()
+    ]);
+
+    CHAT_ITEMS = [];
+    qaSnap.docs.forEach(function(d){
+      var r=d.data();
+      CHAT_ITEMS.push({type:'qa',source:r.s||'',category:r.c||'',
+        question:r.q||'',answer:r.a||'',remark:r.r||'',
+        img:r.img||'',img0:r.img0||'',img1:r.img1||'',
+        img2:r.img2||'',img3:r.img3||'',img4:r.img4||'',xs:r.xs||0});
+    });
+    manSnap.docs.forEach(function(d){
+      var r=d.data();
+      CHAT_ITEMS.push({type:'manual',source:r.s||'',category:r.c||'',item:r.it||'',
+        question:r.q||'',answer:r.a||'',remark:r.r||'',
+        img:r.img||'',img0:r.img0||'',img1:r.img1||'',
+        img2:r.img2||'',img3:r.img3||'',img4:r.img4||'',xs:r.xs||0});
+    });
+
+    // 캐시 저장
+    try{
+      localStorage.setItem('triplus_chatbot_cache', JSON.stringify({ts:Date.now(), items:CHAT_ITEMS}));
+    }catch(se){}
+
+    CHAT_LOADED = true;
+    CHAT_LOADING = false;
+    console.log('[챗봇] 로드 완료 —', CHAT_ITEMS.length, '건');
+    return true;
+  }catch(e){
+    CHAT_LOADING = false;
+    console.warn('[챗봇] 로드 실패:', e.message);
+    return false;
+  }
+}
+
+/* ── 유틸 ── */
+function chatNow(){
+  var d=new Date();
+  return d.getHours().toString().padStart(2,'0')+':'+d.getMinutes().toString().padStart(2,'0');
+}
+function chatNorm(s){return (s||'').toLowerCase().replace(/\s+/g,' ').trim();}
+function chatTokenize(s){
+  return chatNorm(s).split(/[\s,\-·.!?]+/).filter(function(t){return t.length>=2;});
+}
+function chatScore(item,tokens,qn){
+  var fields=[{t:item.question,w:3},{t:item.answer,w:2},{t:item.category,w:1.5},{t:item.source,w:1}];
+  var s=0,matched=0;
+  for(var fi=0;fi<fields.length;fi++){
+    var n=chatNorm(fields[fi].t),w=fields[fi].w;
+    if(n.indexOf(qn)>=0) s+=w*5;
+    for(var ti=0;ti<tokens.length;ti++){
+      if(n.indexOf(tokens[ti])>=0){s+=w*2;matched++;}
+    }
+  }
+  var cov=tokens.length>0?matched/tokens.length:0;
+  return s*(0.5+cov*0.5);
+}
+function chatGetCtx(query){
+  if(!CHAT_ITEMS.length) return '';
+  var qn=chatNorm(query),tokens=chatTokenize(query),scored=[];
+  for(var i=0;i<CHAT_ITEMS.length;i++){
+    var item=CHAT_ITEMS[i];
+    if(item.xs) continue;
+    var sc=chatScore(item,tokens,qn);
+    if(sc>0) scored.push({item:item,sc:sc});
+  }
+  scored.sort(function(a,b){return b.sc-a.sc;});
+  return scored.slice(0,6).map(function(x,i){
+    return '['+(i+1)+'] 출처:'+x.item.source+
+      (x.item.category?' ('+x.item.category+')':'')+
+      '\nQ:'+x.item.question.slice(0,300)+
+      '\nA:'+x.item.answer.slice(0,400);
+  }).join('\n\n');
+}
+function chatGetSources(query){
+  if(!CHAT_ITEMS.length) return [];
+  var qn=chatNorm(query),tokens=chatTokenize(query),scored=[];
+  for(var i=0;i<CHAT_ITEMS.length;i++){
+    var item=CHAT_ITEMS[i];
+    if(item.xs) continue;
+    var sc=chatScore(item,tokens,qn);
+    if(sc>0) scored.push({item:item,sc:sc});
+  }
+  scored.sort(function(a,b){return b.sc-a.sc;});
+  return scored.slice(0,3);
+}
+
+/* ── 말풍선 렌더 ── */
+function chatTagHTML(source){
+  var map={'트리플러스':'t-triplus','오큐파이':'t-occupi','출장정책':'t-manual',
+    '운영정책':'t-manual','남양연구소':'t-manual','해외출장을위한이동':'t-overseas',
+    '증빙규정':'t-jungbig','숙박비규정':'t-sukbak'};
+  return '<span class="tag '+(map[source]||'t-triplus')+'">'+(source||'')+'</span>';
+}
+function chatAppendMsg(role,text,sources,isError){
+  var welcome=document.getElementById('chat-welcome');
+  if(welcome) welcome.style.display='none';
+  var msgs=document.getElementById('chatbot-messages');
+  var row=document.createElement('div');
+  row.className='chat-row '+(role==='user'?'user':'ai');
+  var avatar=document.createElement('div');
+  avatar.className='chat-avatar '+(role==='user'?'user':'ai');
+  avatar.textContent=role==='user'?'🙋':'🤖';
+  var bWrap=document.createElement('div');
+  var bubble=document.createElement('div');
+  bubble.className='chat-bubble '+(role==='user'?'user':'ai')+(isError?' error':'');
+  if(role==='ai'){
+    var esc2=function(s){return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');};
+    bubble.innerHTML=esc2(text).replace(/(https?:\/\/[^\s&<>"']+)/g,function(u){
+      return '<a href="'+u+'" target="_blank" rel="noopener noreferrer" style="color:#2563eb;text-decoration:underline;word-break:break-all;">'+u+'</a>';
+    });
+  } else { bubble.textContent=text; }
+  bWrap.appendChild(bubble);
+  if(role==='ai'&&sources&&sources.length){
+    var srcDiv=document.createElement('div');
+    srcDiv.className='chat-sources';
+    var lbl=document.createElement('div');
+    lbl.className='chat-src-label';
+    lbl.textContent='📎 참고한 데이터 '+sources.length+'건';
+    srcDiv.appendChild(lbl);
+    sources.forEach(function(s){
+      var card=document.createElement('div');
+      card.className='chat-src-card';
+      var top=document.createElement('div'); top.className='chat-src-top';
+      top.innerHTML=chatTagHTML(s.item.source);
+      var q=document.createElement('div'); q.className='chat-src-q'; q.textContent=s.item.question;
+      var a=document.createElement('div'); a.className='chat-src-a'; a.textContent=s.item.answer;
+      card.appendChild(top); card.appendChild(q); card.appendChild(a);
+      var imgs=[s.item.img0,s.item.img1,s.item.img2,s.item.img3,s.item.img4,s.item.img].filter(Boolean);
+      if(imgs.length){
+        var imgRow=document.createElement('div'); imgRow.className='chat-imgs';
+        imgs.slice(0,3).forEach(function(src){
+          var imgEl=document.createElement('img'); imgEl.className='chat-img-thumb';
+          imgEl.src=(src.startsWith('http')||src.startsWith('data:'))?src:'data:image/png;base64,'+src;
+          imgEl.onclick=function(e){e.stopPropagation();if(window.openImgModal)window.openImgModal(this.src,'');};
+          imgRow.appendChild(imgEl);
+        });
+        card.appendChild(imgRow);
+      }
+      srcDiv.appendChild(card);
+    });
+    bWrap.appendChild(srcDiv);
+  }
+  var time=document.createElement('div'); time.className='chat-time'; time.textContent=chatNow();
+  bWrap.appendChild(time);
+  row.appendChild(avatar); row.appendChild(bWrap);
+  msgs.appendChild(row); msgs.scrollTop=msgs.scrollHeight;
+}
+function chatAppendTyping(){
+  var welcome=document.getElementById('chat-welcome');
+  if(welcome) welcome.style.display='none';
+  var msgs=document.getElementById('chatbot-messages');
+  var row=document.createElement('div');
+  row.className='chat-row ai'; row.id='chat-typing';
+  var avatar=document.createElement('div'); avatar.className='chat-avatar ai'; avatar.textContent='🤖';
+  var ind=document.createElement('div'); ind.className='typing-indicator';
+  ind.innerHTML='<div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div>';
+  row.appendChild(avatar); row.appendChild(ind);
+  msgs.appendChild(row); msgs.scrollTop=msgs.scrollHeight;
+}
+function chatRemoveTyping(){var t=document.getElementById('chat-typing');if(t)t.remove();}
+function chatSetTypingMsg(msg){
+  var t=document.getElementById('chat-typing');
+  if(t){var ind=t.querySelector('.typing-indicator');
+    if(ind)ind.innerHTML='<span style="font-size:12px;color:var(--text3)">'+msg+'</span>';}
+}
+
+/* ── 전송 ── */
+async function chatSend(){
+  var input=document.getElementById('chatbot-input');
+  var query=input.value.trim();
+  if(!query) return;
+  var sendBtn=document.getElementById('chatbot-send');
+  sendBtn.disabled=true; input.value=''; input.style.height='auto';
+  chatAppendMsg('user',query);
+  CHAT_HISTORY.push({role:'user',content:query});
+  chatAppendTyping();
+
+  if(!CHAT_LOADED){
+    chatSetTypingMsg('📡 데이터 불러오는 중...');
+    var ok=await chatLoadData();
+    if(!ok){
+      chatRemoveTyping();
+      chatAppendMsg('ai','데이터를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.',null,true);
+      sendBtn.disabled=false; return;
+    }
+  }
+
+  var ctx=chatGetCtx(query);
+  var sources=chatGetSources(query);
+  var histSlice=CHAT_HISTORY.slice(-10);
+  var messages=[];
+  for(var i=0;i<histSlice.length-1;i++) messages.push(histSlice[i]);
+  messages.push({role:'user',content:query+(ctx?'\n\n[참고 데이터]\n'+ctx:'')});
+
+  try{
+    var resp=await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        model:'claude-sonnet-4-20250514',
+        max_tokens:1000,
+        system:
+          '당신은 현대자동차 트리플러스 출장관리 전문 상담 챗봇입니다.\n'+
+          '- 제공된 [참고 데이터]를 우선으로 답변하세요.\n'+
+          '- 데이터에 없는 내용은 "확인이 필요합니다"라고 안내하세요.\n'+
+          '- 금액, 기준, 절차 등 구체적인 수치가 있으면 반드시 포함하세요.\n'+
+          '- 300자 이내로 간결하게, 중요 내용은 줄바꿈으로 구분하세요.',
+        messages:messages
+      })
+    });
+    var data=await resp.json();
+    var answer=(data.content&&data.content[0])?data.content[0].text:'답변을 생성할 수 없습니다.';
+    chatRemoveTyping();
+    chatAppendMsg('ai',answer,sources);
+    CHAT_HISTORY.push({role:'assistant',content:answer});
+  }catch(e){
+    chatRemoveTyping();
+    chatAppendMsg('ai','네트워크 오류가 발생했습니다. 잠시 후 다시 시도해주세요.',null,true);
+  }
+  sendBtn.disabled=false; input.focus();
+}
+
+function chatSuggest(text){document.getElementById('chatbot-input').value=text;chatSend();}
+window.chatSuggest=chatSuggest;
+
+var WELCOME_HTML='<div class="chat-welcome" id="chat-welcome">'+
+  '<div class="chat-welcome-icon">✈️</div>'+
+  '<div class="chat-welcome-title">출장관리 AI 챗봇입니다</div>'+
+  '<div class="chat-welcome-sub">출장비 정산, 숙박비 기준, 증빙서류 등<br>출장 관련 무엇이든 자유롭게 물어보세요.</div>'+
+  '<div class="chat-suggestions">'+
+  '<span class="chat-sugg" onclick="chatSuggest(this.textContent)">숙박비 상한액이 얼마예요?</span>'+
+  '<span class="chat-sugg" onclick="chatSuggest(this.textContent)">해외출장 증빙서류는 뭐가 필요한가요?</span>'+
+  '<span class="chat-sugg" onclick="chatSuggest(this.textContent)">50km 미만 출장도 교통비 받을 수 있나요?</span>'+
+  '<span class="chat-sugg" onclick="chatSuggest(this.textContent)">트리플러스 앱 사용 방법 알려주세요</span>'+
+  '<span class="chat-sugg" onclick="chatSuggest(this.textContent)">출장 정산은 며칠 안에 해야 하나요?</span>'+
+  '</div></div>';
+
+function chatClear(){
+  if(CHAT_HISTORY.length&&!confirm('대화 내용을 모두 초기화하시겠습니까?')) return;
+  CHAT_HISTORY=[];
+  document.getElementById('chatbot-messages').innerHTML=WELCOME_HTML;
+}
+window.chatClear=chatClear;
+
+// Enter 전송 / Shift+Enter 줄바꿈
+var chatInput=document.getElementById('chatbot-input');
+if(chatInput){
+  chatInput.addEventListener('keydown',function(e){
+    if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();chatSend();}
+  });
+  chatInput.addEventListener('input',function(){
+    this.style.height='auto';
+    this.style.height=Math.min(this.scrollHeight,120)+'px';
+  });
+}
+
+// 챗봇 탭 클릭 시 미리 로드 시작 (첫 질문 지연 최소화)
+var ntab=document.getElementById('ntab-chatbot');
+if(ntab) ntab.addEventListener('click',function(){
+  if(!CHAT_LOADED&&!CHAT_LOADING) chatLoadData();
+});
+
+})();
+</script>
 
 </body>
 </html>
