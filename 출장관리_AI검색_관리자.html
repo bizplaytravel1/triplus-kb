@@ -369,6 +369,7 @@ auth.onAuthStateChanged(async function(u){
 });
 
 /* ── 데이터 로드 ── */
+// 최초 1회만 전체 로드. 이후 저장/삭제는 메모리만 패치하여 Firestore 재읽기 없음.
 async function loadAll(){
   var[q,m,t,a]=await Promise.all([
     db.collection('qa').get(),
@@ -381,6 +382,38 @@ async function loadAll(){
   DATA.tables={};
   t.docs.forEach(function(d){var r=Object.assign({_id:d.id},d.data());var tn=r.tableName;if(!DATA.tables[tn])DATA.tables[tn]=[];DATA.tables[tn].push(r);});
   DATA.accounts=a.docs.map(function(d){return Object.assign({_id:d.id},d.data());});
+  updateCounts();
+}
+
+/* ── 메모리 패치 (저장/삭제 후 Firestore 재읽기 없이 DATA 갱신) ── */
+function patchSave(col, id, data, tbl){
+  if(col==='qa'){
+    var idx=DATA.qa.findIndex(function(r){return r._id===id;});
+    if(idx>=0) Object.assign(DATA.qa[idx],data); else DATA.qa.unshift(Object.assign({_id:id},data));
+  } else if(col==='manual'){
+    var idx=DATA.manual.findIndex(function(r){return r._id===id;});
+    if(idx>=0) Object.assign(DATA.manual[idx],data); else DATA.manual.unshift(Object.assign({_id:id},data));
+  } else if(col==='tables'){
+    var tn=tbl||data.tableName;
+    if(!DATA.tables[tn])DATA.tables[tn]=[];
+    var idx=DATA.tables[tn].findIndex(function(r){return r._id===id;});
+    if(idx>=0) Object.assign(DATA.tables[tn][idx],data); else DATA.tables[tn].unshift(Object.assign({_id:id},data));
+  }
+  updateCounts();
+}
+function patchDelete(col, id, tbl){
+  if(col==='qa') DATA.qa=DATA.qa.filter(function(r){return r._id!==id;});
+  else if(col==='manual') DATA.manual=DATA.manual.filter(function(r){return r._id!==id;});
+  else if(col==='tables'&&tbl) DATA.tables[tbl]=( DATA.tables[tbl]||[]).filter(function(r){return r._id!==id;});
+  updateCounts();
+}
+function patchXlUpload(col, rows, tbl){
+  if(col==='qa') rows.forEach(function(r){DATA.qa.push(Object.assign({_id:r.id},r));});
+  else if(col==='manual') rows.forEach(function(r){DATA.manual.push(Object.assign({_id:r.id},r));});
+  else if(col==='tables'){
+    var tn=tbl||(rows[0]&&rows[0].tableName);
+    if(tn){if(!DATA.tables[tn])DATA.tables[tn]=[];rows.forEach(function(r){DATA.tables[tn].push(Object.assign({_id:r.id},r));});}
+  }
   updateCounts();
 }
 function sc(id,n){var el=document.getElementById(id);if(el)el.textContent=n;}
@@ -517,7 +550,8 @@ function renderManEtc(m){
   var h='<div class="page-hdr"><div class="page-title">📋 기타 매뉴얼 <small>총 '+total+'건</small></div>';
   h+='<div class="page-actions"><button class="btn btn-success" data-add="manual|증빙규정">+ 항목 추가</button></div></div>';
   h+='<div class="toolbar">'+mkSearch('소스, 카테고리, 질문 검색...')+'</div>';
-  h+=manTblHTML(prows,total);m.innerHTML=h;bindEvents(m);
+  h+='<div style="display:flex;align-items:center;padding:6px 0 4px"><button class="btn-del-sel" id="btn-del-sel">🗑️ 선택 삭제</button><span class="sel-count" id="sel-count"></span></div>';
+  h+=manTblHTML(prows,total,rows);m.innerHTML=h;bindEvents(m);bindCheckbox(m,rows);
 }
 function manTblHTML(prows,total,allRows){
   var h='<div class="tbl-wrap"><table class="dtbl" id="cur-tbl"><thead><tr>';
@@ -652,7 +686,8 @@ async function bulkDelete(checkedCbs){
     });
     await batch.commit();
     LAST_NEW_ID=null;
-    await loadAll();
+    // 메모리 패치: 일괄 삭제된 항목 제거
+    ids.forEach(function(item){ patchDelete(item.col, item.id, item.tbl); });
     render();
   }catch(e){alert('삭제 실패: '+e.message);}
 }
@@ -717,13 +752,15 @@ function renderAccounts(m){
 }
 async function addAcc(){
   var em=prompt('추가할 구글 이메일:');if(!em||!em.includes('@'))return;
-  await db.collection('admin_accounts').add({email:em.trim().toLowerCase(),added_at:new Date().toISOString().split('T')[0],added_by:CU.email});
-  await loadAll();renderAccounts(document.getElementById('main'));
+  var ref=await db.collection('admin_accounts').add({email:em.trim().toLowerCase(),added_at:new Date().toISOString().split('T')[0],added_by:CU.email});
+  DATA.accounts.push({_id:ref.id,email:em.trim().toLowerCase(),added_at:new Date().toISOString().split('T')[0],added_by:CU.email});
+  renderAccounts(document.getElementById('main'));
 }
 async function delAcc(id){
   if(!confirm('삭제하시겠습니까?'))return;
   await db.collection('admin_accounts').doc(id).delete();
-  await loadAll();renderAccounts(document.getElementById('main'));
+  DATA.accounts=DATA.accounts.filter(function(a){return a._id!==id;});
+  renderAccounts(document.getElementById('main'));
 }
 
 /* ── 편집 모달 ── */
@@ -835,9 +872,10 @@ async function doSave(){
     if(EDIT_ID){await db.collection(EDIT_COL).doc(EDIT_ID).update(data);sid=EDIT_ID;}
     else{var nid=EDIT_COL+'_'+Date.now();data.id=nid;await db.collection(EDIT_COL).doc(nid).set(data);sid=nid;}
     LAST_NEW_ID=sid;CUR=1;msg.textContent='✅ 저장 완료! (검색 반영까지 최대 6시간 소요)';
-    // 검색 페이지 캐시 무효화 — 발효 시각(현재+6h)을 기록, 검색 페이지는 해당 시각 이후에만 재로드
     try{ localStorage.setItem('triplus_kb_ver', String(Date.now() + 6 * 60 * 60 * 1000)); }catch(e){}
-    setTimeout(function(){closeModal();loadAll().then(render);},500);
+    // Firestore 재읽기 없이 메모리만 패치
+    patchSave(EDIT_COL, sid, data, EDIT_TBL);
+    setTimeout(function(){closeModal();render();},500);
   }catch(e){msg.textContent='❌ '+e.message;msg.className='modal-msg err';}
 }
 async function doDelete(){
@@ -845,7 +883,9 @@ async function doDelete(){
   await db.collection(EDIT_COL).doc(EDIT_ID).delete();
   LAST_NEW_ID=null;closeModal();
   try{ localStorage.setItem('triplus_kb_ver', String(Date.now() + 6 * 60 * 60 * 1000)); }catch(e){}
-  await loadAll();render();
+  // Firestore 재읽기 없이 메모리만 패치
+  patchDelete(EDIT_COL, EDIT_ID, EDIT_TBL);
+  render();
 }
 
 /* ── 이미지 업로드 ── */
@@ -1064,7 +1104,8 @@ async function doXlUpload(){
     LAST_NEW_ID=lastId;CUR=1;
     showXlMsg('✅ '+total+'건 등록 완료!');
     btn.textContent='✅ 완료';
-    await loadAll();
+    // 메모리 패치: 엑셀 업로드된 행 추가
+    patchXlUpload(XL_MODE, XL_ROWS, XL_TNAME);
     setTimeout(function(){closeXlModal();render();},1000);
   }catch(e){showXlMsg('❌ 오류: '+e.message,true);btn.disabled=false;btn.textContent='🚀 일괄 등록하기';}
 }
