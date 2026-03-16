@@ -308,7 +308,7 @@ var db=firebase.firestore(), auth=firebase.auth(), storage=firebase.storage();
 
 /* ── 상태 ── */
 var CU=null, ALLOWED=[], DATA={qa:[],manual:[],tables:{},accounts:[]};
-var TAB='qa', PAGE=50, CUR=1, KW='', FILTER='all';
+var TAB='qa', PAGE=50, CUR=1, KW='', FILTER='all', IMG_FILTER='all';
 var EDIT_ID=null, EDIT_COL=null, EDIT_TBL=null, LAST_NEW_ID=null, XL_ROWS=[], XL_SRC='트리플러스', XL_MODE='qa', XL_TNAME='';
 
 /* ── 디바운스 ── */
@@ -437,7 +437,7 @@ function updateCounts(){
 
 /* ── 탭 이동 ── */
 function go(tab){
-  TAB=tab;CUR=1;KW='';FILTER='all';LAST_NEW_ID=null;
+  TAB=tab;CUR=1;KW='';FILTER='all';IMG_FILTER='all';LAST_NEW_ID=null;
   document.querySelectorAll('.sb-item').forEach(function(e){e.classList.remove('active');});
   var sb=document.getElementById('sb-'+tab);if(sb)sb.classList.add('active');
   render();
@@ -466,11 +466,24 @@ function render(){
 
 function esc(s){return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 function sortNew(rows){if(!LAST_NEW_ID)return rows;var n=rows.find(function(r){return r._id===LAST_NEW_ID;});return n?[n].concat(rows.filter(function(r){return r._id!==LAST_NEW_ID;})):rows;}
+function hasImg(r){return !!(r.img0||r.img1||r.img2||r.img3||r.img4||r.img);}
 function applyKF(rows,fields){
   var r=rows;
   if(FILTER!=='all')r=r.filter(function(x){return x.s===FILTER;});
+  if(IMG_FILTER==='with')r=r.filter(function(x){return hasImg(x);});
+  else if(IMG_FILTER==='without')r=r.filter(function(x){return !hasImg(x);});
   if(KW){var kw=KW.toLowerCase();r=r.filter(function(x){return fields.some(function(f){return (x[f]||'').toLowerCase().indexOf(kw)>=0;});});}
   return r;
+}
+function mkImgRadio(){
+  var opts=[['all','전체'],['with','이미지 첨부'],['without','이미지 미첨부']];
+  var h='<div style="display:flex;align-items:center;gap:14px;margin-left:4px">';
+  opts.forEach(function(o){
+    var chk=IMG_FILTER===o[0]?' checked':'';
+    h+='<label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:12px;color:#4b5680;white-space:nowrap">'
+      +'<input type="radio" name="img-filter" value="'+o[0]+'"'+chk+' style="accent-color:#2563eb;cursor:pointer">'+o[1]+'</label>';
+  });
+  return h+'</div>';
 }
 function getQTag(s){return s==='트리플러스'?'<span class="tag t-tp">트리플러스</span>':s==='오큐파이'?'<span class="tag t-oc">오큐파이</span>':'<span class="tag t-etc">'+esc(s)+'</span>';}
 function getMTag(s){
@@ -506,6 +519,7 @@ function renderQA(m,src){
   h+='</div></div>';
   h+='<div class="toolbar">'+mkSearch('질문, 답변, 소스 검색...');
   if(!src){h+='<div class="fchips"><span class="fchip'+(FILTER==='all'?' on':'')+'" data-f="all">전체</span><span class="fchip'+(FILTER==='트리플러스'?' on':'')+'" data-f="트리플러스">트리플러스</span><span class="fchip'+(FILTER==='오큐파이'?' on':'')+'" data-f="오큐파이">오큐파이</span></div>';}
+  h+=mkImgRadio();
   h+='</div>';
   h+='<div style="display:flex;align-items:center;padding:6px 0 4px"><button class="btn-del-sel" id="btn-del-sel">🗑️ 선택 삭제</button><span class="sel-count" id="sel-count"></span></div>';
   h+='<div class="tbl-wrap"><table class="dtbl" id="cur-tbl"><thead><tr>';
@@ -539,7 +553,7 @@ function renderMan(m,sources,title){
   h+='<button class="btn btn-purple" data-xl="manual|'+defSrc+'">📊 엑셀 일괄 등록</button>';
   h+='<button class="btn btn-success" data-add="manual|'+defSrc+'">+ 항목 추가</button>';
   h+='</div></div>';
-  h+='<div class="toolbar">'+mkSearch('소스, 카테고리, 질문, 답변 검색...')+'</div>';
+  h+='<div class="toolbar">'+mkSearch('소스, 카테고리, 질문, 답변 검색...')+mkImgRadio()+'</div>';
   h+='<div style="display:flex;align-items:center;padding:6px 0 4px"><button class="btn-del-sel" id="btn-del-sel">🗑️ 선택 삭제</button><span class="sel-count" id="sel-count"></span></div>';
   h+=manTblHTML(prows,total,rows);m.innerHTML=h;bindEvents(m);bindCheckbox(m,rows);
 }
@@ -549,7 +563,7 @@ function renderManEtc(m){
   var total=rows.length,prows=rows.slice((CUR-1)*PAGE,CUR*PAGE);
   var h='<div class="page-hdr"><div class="page-title">📋 기타 매뉴얼 <small>총 '+total+'건</small></div>';
   h+='<div class="page-actions"><button class="btn btn-success" data-add="manual|증빙규정">+ 항목 추가</button></div></div>';
-  h+='<div class="toolbar">'+mkSearch('소스, 카테고리, 질문 검색...')+'</div>';
+  h+='<div class="toolbar">'+mkSearch('소스, 카테고리, 질문 검색...')+mkImgRadio()+'</div>';
   h+='<div style="display:flex;align-items:center;padding:6px 0 4px"><button class="btn-del-sel" id="btn-del-sel">🗑️ 선택 삭제</button><span class="sel-count" id="sel-count"></span></div>';
   h+=manTblHTML(prows,total,rows);m.innerHTML=h;bindEvents(m);bindCheckbox(m,rows);
 }
@@ -618,6 +632,8 @@ function bindEvents(m){
   if(clr){clr.addEventListener('click',function(){KW='';CUR=1;var i=m.querySelector('#kw-inp');if(i)i.value='';render();});}
   /* 필터 칩 */
   m.querySelectorAll('[data-f]').forEach(function(el){el.addEventListener('click',function(){FILTER=this.dataset.f;CUR=1;render();});});
+  /* 이미지 필터 라디오 */
+  m.querySelectorAll('input[name="img-filter"]').forEach(function(el){el.addEventListener('change',function(){IMG_FILTER=this.value;CUR=1;render();});});
   /* 페이지 버튼 */
   m.querySelectorAll('[data-p]').forEach(function(el){el.addEventListener('click',function(){if(this.disabled)return;CUR=parseInt(this.dataset.p);render();window.scrollTo(0,0);});});
   /* 추가 버튼 */
