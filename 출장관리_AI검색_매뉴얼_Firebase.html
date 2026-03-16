@@ -1957,6 +1957,33 @@ var allItems = [];
 var TD = null;
 var activeFilter = "all";
 
+// ── 공통: 이미지 블록 HTML 생성 (img, img0~img4 모두 처리) ──
+function buildImgHtml(item, thumbClass) {
+  var srcs = [
+    {src: item.img,  cap: item.img_caption  || ''},
+    {src: item.img0, cap: ''},
+    {src: item.img1, cap: item.img1_caption || ''},
+    {src: item.img2, cap: item.img2_caption || ''},
+    {src: item.img3, cap: ''},
+    {src: item.img4, cap: ''}
+  ].filter(function(x){ return !!x.src; });
+  if (!srcs.length) return '';
+  var cls = thumbClass || 'common-thumb';
+  var h = '<div class="ref-imgs">';
+  h += '<div style="font-size:11px;color:var(--accent2);font-weight:700;margin-bottom:4px">🖼️ 첨부 이미지 (클릭하면 확대)</div>';
+  for (var i = 0; i < srcs.length; i++) {
+    var raw = srcs[i].src;
+    var fullSrc = (raw.startsWith('http') || raw.startsWith('data:')) ? raw : 'data:image/png;base64,' + raw;
+    var cap = esc(srcs[i].cap);
+    h += '<div class="ref-thumb ' + cls + '" data-imgsrc="' + esc(fullSrc) + '" data-imgcap="' + cap + '">';
+    h += '<img src="' + esc(fullSrc) + '" alt="' + cap + '" style="max-height:120px;object-fit:cover">';
+    if (srcs[i].cap) h += '<div class="ref-thumb-label">' + cap + '</div>';
+    h += '</div>';
+  }
+  h += '</div>';
+  return h;
+}
+
 // ── 남양연구소 시내교통비 렌더 ──────────────────────────────────
 function renderNanyang() {
   var kw = (document.getElementById('ny-search')||{}).value||'';
@@ -2011,28 +2038,7 @@ function renderNanyang() {
     out += '<span class="ov-title">'+esc(item.question)+'</span>';
     out += '<span style="margin-left:auto;font-size:12px;color:var(--text3);flex-shrink:0" class="ny-arrow-'+cardId+'">&#9660;</span>';
     out += '</div>';
-    // 이미지 렌더 (img, img0~img4 — URL 또는 base64 모두 처리)
-    var _nyImgs = [];
-    var _nySrcs = [item.img, item.img0, item.img1, item.img2, item.img3, item.img4];
-    var _nyCaps = [item.img_caption||'', '', item.img1_caption||'', item.img2_caption||'', '', ''];
-    for(var _ni=0; _ni<_nySrcs.length; _ni++){
-      if(_nySrcs[_ni]) _nyImgs.push({src:_nySrcs[_ni], cap:_nyCaps[_ni]||''});
-    }
-    var imgHtml = '';
-    if(_nyImgs.length){
-      imgHtml += '<div class="ref-imgs">';
-      imgHtml += '<div style="font-size:11px;color:var(--accent2);font-weight:700;margin-bottom:4px">🖼️ 첨부 이미지 (클릭하면 확대)</div>';
-      for(var _ni2=0; _ni2<_nyImgs.length; _ni2++){
-        var _src = _nyImgs[_ni2].src;
-        var _cap = esc(_nyImgs[_ni2].cap);
-        var _fullSrc = (_src.startsWith('http')||_src.startsWith('data:')) ? _src : 'data:image/png;base64,'+_src;
-        imgHtml += '<div class="ref-thumb ny-thumb" data-imgsrc="'+esc(_fullSrc)+'" data-imgcap="'+_cap+'">';
-        imgHtml += '<img src="'+esc(_fullSrc)+'" alt="'+_cap+'" style="max-height:120px;object-fit:cover">';
-        if(_nyImgs[_ni2].cap) imgHtml += '<div class="ref-thumb-label">'+_cap+'</div>';
-        imgHtml += '</div>';
-      }
-      imgHtml += '</div>';
-    }
+    var imgHtml = buildImgHtml(item, 'ny-thumb');
     out += '<div class="ov-body ny-body-'+cardId+'" style="display:none">'+ansHtml+rem+imgHtml+'</div>';
     out += '</div>';
   }
@@ -2054,19 +2060,16 @@ function nyToggle(cardId) {
   if(arrow) arrow.innerHTML = open ? '&#9660;' : '&#9650;';
 }
 
-// 남양 이미지 썸네일 클릭 이벤트 위임
+// 이미지 썸네일 클릭 이벤트 위임 (ny-thumb · common-thumb 공통)
 (function(){
-  var nyBody = document.getElementById('ny-body');
-  if(nyBody){
-    nyBody.addEventListener('click', function(e){
-      var thumb = e.target.closest('.ny-thumb');
-      if(thumb){
-        var src = thumb.getAttribute('data-imgsrc');
-        var cap = thumb.getAttribute('data-imgcap')||'';
-        if(src && window.openImgModal) openImgModal(src, cap);
-      }
-    });
-  }
+  document.body.addEventListener('click', function(e){
+    var thumb = e.target.closest('.ny-thumb, .common-thumb');
+    if(thumb){
+      var src = thumb.getAttribute('data-imgsrc');
+      var cap = thumb.getAttribute('data-imgcap')||'';
+      if(src && window.openImgModal) openImgModal(src, cap);
+    }
+  });
 })();
 
 
@@ -2089,21 +2092,7 @@ function renderOverseas() {
     out += '<span class="ov-title">'+esc(item.question)+'</span>';
     out += '</div>';
     out += '<div class="ov-body">'+ans+'</div>';
-    if(item.img1) {
-      var cap1 = esc(item.img1_caption||'');
-      out += '<div class="ref-imgs">';
-      out += '<div style="font-size:11px;color:var(--accent2);font-weight:700;margin-bottom:4px">\uD83D\uDDBC\uFE0F \uCC38\uACE0 \uC774\uBBF8\uC9C0 (\uD074\uB9AD\uD558\uBA74 \uD655\uB300)</div>';
-      out += '<div class="ref-thumb ov-thumb" data-cap="'+cap1+'">';
-      out += '<img src="data:image/png;base64,'+item.img1+'" alt="'+cap1+'">';
-      out += '<div class="ref-thumb-label">'+cap1+'</div></div>';
-      if(item.img2) {
-        var cap2 = esc(item.img2_caption||'');
-        out += '<div class="ref-thumb ov-thumb" data-cap="'+cap2+'">';
-        out += '<img src="data:image/png;base64,'+item.img2+'" alt="'+cap2+'">';
-        out += '<div class="ref-thumb-label">'+cap2+'</div></div>';
-      }
-      out += '</div>';
-    }
+    out += buildImgHtml(item, 'ov-thumb');
     out += '</div>';
   }
   if(!out) out = '<p style="padding:40px;text-align:center;color:var(--text2)">검색 결과가 없습니다.</p>';
@@ -2111,9 +2100,9 @@ function renderOverseas() {
   // 썸네일 onclick 이벤트 위임 (data-src 방식으로 싱글쿼트 충돌 회피)
   document.querySelectorAll('.ov-thumb').forEach(function(el) {
     el.onclick = function() {
-      var img = this.querySelector('img');
-      var cap = this.getAttribute('data-cap')||'';
-      if(img) openImgModal(img.src, cap);
+      var src = this.getAttribute('data-imgsrc') || (this.querySelector('img')||{}).src || '';
+      var cap = this.getAttribute('data-imgcap') || this.getAttribute('data-cap') || '';
+      if(src) openImgModal(src, cap);
     };
   });
 }
