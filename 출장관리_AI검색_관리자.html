@@ -202,6 +202,8 @@ header{background:#1a1f36;padding:0 24px;display:flex;align-items:center;gap:16p
       <div class="hdr-sub">현대자동차 트리플러스 지식베이스 통합 관리</div>
     </div>
     <div class="hdr-right">
+      <span id="publish-status" style="font-size:11px;color:#fbbf24;background:rgba(251,191,36,.15);border-radius:20px;padding:4px 12px;white-space:nowrap;display:none">⏳ 대기 중인 변경사항</span>
+      <button id="instant-publish-btn" style="display:none;background:#f59e0b;border:none;border-radius:8px;padding:5px 12px;font-size:12px;cursor:pointer;color:#fff;font-family:'Noto Sans KR',sans-serif;font-weight:600;white-space:nowrap" title="대기 중인 변경사항을 즉시 검색에 반영합니다">⚡ 즉시 반영</button>
       <span class="user-chip" id="uem"></span>
       <button class="logout-btn" id="logout-btn">로그아웃</button>
     </div>
@@ -363,7 +365,7 @@ auth.onAuthStateChanged(async function(u){
   document.getElementById('uem').textContent=u.email;
   document.getElementById('main').innerHTML='<div class="loading"><div class="spin"></div><br>데이터 로딩 중...</div>';
   await loadAll();
-  go('qa');
+  go('qa'); checkPendingPublish();
 });
 
 /* ── 데이터 로드 ── */
@@ -832,9 +834,9 @@ async function doSave(){
     var sid;
     if(EDIT_ID){await db.collection(EDIT_COL).doc(EDIT_ID).update(data);sid=EDIT_ID;}
     else{var nid=EDIT_COL+'_'+Date.now();data.id=nid;await db.collection(EDIT_COL).doc(nid).set(data);sid=nid;}
-    LAST_NEW_ID=sid;CUR=1;msg.textContent='✅ 저장 완료!';
-    // 검색 페이지 캐시 자동 무효화 (버전 키 갱신)
-    try{ localStorage.setItem('triplus_kb_ver', String(Date.now())); }catch(e){}
+    LAST_NEW_ID=sid;CUR=1;msg.textContent='✅ 저장 완료! (검색 반영까지 최대 6시간 소요)';
+    // 검색 페이지 캐시 무효화 — 발효 시각(현재+6h)을 기록, 검색 페이지는 해당 시각 이후에만 재로드
+    try{ localStorage.setItem('triplus_kb_ver', String(Date.now() + 6 * 60 * 60 * 1000)); }catch(e){}
     setTimeout(function(){closeModal();loadAll().then(render);},500);
   }catch(e){msg.textContent='❌ '+e.message;msg.className='modal-msg err';}
 }
@@ -842,7 +844,7 @@ async function doDelete(){
   if(!EDIT_ID||!confirm('삭제하시겠습니까? 복구 불가합니다.'))return;
   await db.collection(EDIT_COL).doc(EDIT_ID).delete();
   LAST_NEW_ID=null;closeModal();
-  try{ localStorage.setItem('triplus_kb_ver', String(Date.now())); }catch(e){}
+  try{ localStorage.setItem('triplus_kb_ver', String(Date.now() + 6 * 60 * 60 * 1000)); }catch(e){}
   await loadAll();render();
 }
 
@@ -1076,8 +1078,37 @@ function renderHelpAdmin(m){
   m.innerHTML='<div class="doc"><h2>🔑 출장관리 AI검색 관리자 사용방법</h2><div class="wbox">⚠️ 반드시 <strong>GitHub Pages 주소</strong>에서 열어야 합니다.</div><div class="gbox">🌐 관리자 주소<br><code>https://bizplaytravel1.github.io/triplus-kb/출장관리_AI검색_관리자.html</code></div><h2>✏️ 수정 / ➕ 추가 / 🗑️ 삭제</h2><div class="step"><div class="sr"><span class="sn">1</span><span>사이드바에서 카테고리 클릭</span></div><div class="sr"><span class="sn">2</span><span>수정 버튼 → 내용 변경 → 💾 저장 (추가/수정 항목은 맨 위 초록 배경으로 표시)</span></div><div class="sr"><span class="sn">3</span><span>삭제: 수정 모달 하단 🗑️ 삭제 버튼</span></div></div><h2>📊 엑셀 일괄 등록</h2><div class="step"><div class="sr"><span class="sn">1</span><span>Q&amp;A 탭 → 📊 엑셀 일괄 등록 클릭</span></div><div class="sr"><span class="sn">2</span><span>📥 예시 엑셀 다운로드 → 양식에 입력 → 저장</span></div><div class="sr"><span class="sn">3</span><span>파일 업로드 → 미리보기 확인 → 🚀 일괄 등록하기</span></div></div><h2>🔍 AI검색 제외 (xs)</h2><table><tr><th>값</th><th>의미</th></tr><tr><td><code>0</code></td><td>🟢 AI 검색 포함 (기본)</td></tr><tr><td><code>1</code></td><td>🔴 AI 검색 제외 (탭에서는 보임)</td></tr></table></div>';
 }
 
+
+/* ── 대기 중 변경사항 상태 표시 ── */
+function checkPendingPublish(){
+  try{
+    var v=localStorage.getItem('triplus_kb_ver');
+    var statusEl=document.getElementById('publish-status');
+    var btnEl=document.getElementById('instant-publish-btn');
+    if(!statusEl||!btnEl)return;
+    if(v && parseInt(v,10) > Date.now()){
+      // 아직 발효 전 — 대기 중 표시
+      var remain=Math.ceil((parseInt(v,10)-Date.now())/3600000);
+      statusEl.textContent='⏳ 대기 중 (약 '+remain+'시간 후 반영)';
+      statusEl.style.display='inline-block';
+      btnEl.style.display='inline-block';
+    } else {
+      statusEl.style.display='none';
+      btnEl.style.display='none';
+    }
+  }catch(e){}
+}
+function instantPublish(){
+  if(!confirm('지금 즉시 검색에 반영할까요?\n(검색 페이지 사용자들이 다음 방문 시 Firebase를 재로드합니다)'))return;
+  try{
+    localStorage.setItem('triplus_kb_ver', String(Date.now()-1));
+    checkPendingPublish();
+    alert('✅ 즉시 반영 완료! 검색 페이지 사용자들이 다음 접속 시 최신 데이터가 표시됩니다.');
+  }catch(e){alert('오류: '+e.message);}
+}
 /* ── DOM 이벤트 연결 (onclick 대신 addEventListener 사용) ── */
 document.getElementById('login-btn').addEventListener('click', signIn);
+document.getElementById('instant-publish-btn').addEventListener('click', instantPublish);
 document.getElementById('logout-btn').addEventListener('click', function(){ auth.signOut().then(function(){location.reload();}); });
 document.getElementById('modal').addEventListener('click', function(e){ if(e.target===this)closeModal(); });
 document.getElementById('modal-cancel').addEventListener('click', closeModal);
