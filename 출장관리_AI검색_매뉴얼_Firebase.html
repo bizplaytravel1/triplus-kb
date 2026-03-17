@@ -1830,20 +1830,18 @@ function getCachedData() {
 function setCachedData(allItemsArr, tdObj, qaDocs, manCnt) {
   try {
     // base64 이미지(data:로 시작)는 캐시 용량 절약을 위해 제외
-    var slimItems = allItemsArr.map(function(it) {
-      var s = Object.assign({}, it);
-      if (s.img && s.img.startsWith('data:')) s.img = '';
-      if (s.img1 && s.img1.startsWith('data:')) s.img1 = '';
-      if (s.img2 && s.img2.startsWith('data:')) s.img2 = '';
+    // img, img0~img4 전체 필드 처리 + base64 이미지가 있었던 항목은 _hasImg 플래그 보존
+    var IMG_FIELDS = ['img','img0','img1','img2','img3','img4'];
+    function slimImg(s) {
+      var hadB64 = false;
+      IMG_FIELDS.forEach(function(f) {
+        if (s[f] && s[f].startsWith('data:')) { s[f] = ''; hadB64 = true; }
+      });
+      if (hadB64) s._hasImg = true; // 캐시 히트 후 이미지 재로드용 플래그
       return s;
-    });
-    var slimQa = qaDocs.map(function(q) {
-      var s = Object.assign({}, q);
-      if (s.img && s.img.startsWith('data:')) s.img = '';
-      if (s.img1 && s.img1.startsWith('data:')) s.img1 = '';
-      if (s.img2 && s.img2.startsWith('data:')) s.img2 = '';
-      return s;
-    });
+    }
+    var slimItems = allItemsArr.map(function(it) { return slimImg(Object.assign({}, it)); });
+    var slimQa    = qaDocs.map(function(q)  { return slimImg(Object.assign({}, q));  });
     var ver = localStorage.getItem(CACHE_VER_KEY) || String(Date.now());
     var obj = { ts: Date.now(), ver: ver, items: slimItems, td: tdObj, qaDocs: slimQa, manCnt: manCnt };
     localStorage.setItem(CACHE_KEY, JSON.stringify(obj));
@@ -1873,6 +1871,54 @@ async function loadFromFirestore() {
     allItems.length = 0;
     for (var ci = 0; ci < cached.items.length; ci++) allItems.push(cached.items[ci]);
     TD = cached.td;
+
+    // base64 이미지가 있었던 항목(_hasImg=true)은 Firestore에서 이미지 필드만 재취득
+    var needImgItems = cached.items.filter(function(it){ return it._hasImg && it._docId; });
+    var needImgQa    = (cached.qaDocs||[]).filter(function(q){ return q._hasImg && (q.id||q._docId); });
+    if (needImgItems.length > 0 || needImgQa.length > 0) {
+      console.log('[KB] base64 이미지 재로드 대상 — manual:', needImgItems.length, 'qa:', needImgQa.length);
+      var IMG_FIELDS = ['img','img0','img1','img2','img3','img4','img_caption','img1_caption','img2_caption'];
+      var patchPromises = [];
+      needImgItems.forEach(function(cached_item) {
+        patchPromises.push(
+          db.collection('manual').doc(cached_item._docId).get().then(function(doc) {
+            if (!doc.exists) return;
+            var d = doc.data();
+            // allItems 내 해당 항목 찾아서 이미지 필드 패치
+            for (var ai = 0; ai < allItems.length; ai++) {
+              if (allItems[ai]._docId === cached_item._docId) {
+                IMG_FIELDS.forEach(function(f){ if (d[f]) allItems[ai][f] = d[f]; });
+                allItems[ai]._hasImg = false;
+                break;
+              }
+            }
+          }).catch(function(e){ console.warn('[KB] 이미지 재로드 실패:', e); })
+        );
+      });
+      needImgQa.forEach(function(cached_q) {
+        var docId = cached_q._docId || cached_q.id;
+        patchPromises.push(
+          db.collection('qa').doc(docId).get().then(function(doc) {
+            if (!doc.exists) return;
+            var d = doc.data();
+            for (var ai = 0; ai < allItems.length; ai++) {
+              if (allItems[ai]._docId === docId) {
+                IMG_FIELDS.forEach(function(f){ if (d[f]) allItems[ai][f] = d[f]; });
+                allItems[ai]._hasImg = false;
+                break;
+              }
+            }
+          }).catch(function(e){ console.warn('[KB] 이미지 재로드 실패(qa):', e); })
+        );
+      });
+      // 비동기 재로드 완료 후 화면 갱신
+      Promise.all(patchPromises).then(function() {
+        console.log('[KB] base64 이미지 재로드 완료 — 화면 갱신');
+        if (typeof renderNanyang === 'function') renderNanyang();
+        if (typeof renderResults === 'function') renderResults();
+      });
+    }
+
     return { manCnt: cached.manCnt, qaDocs: cached.qaDocs, fromCache: true };
   }
 
