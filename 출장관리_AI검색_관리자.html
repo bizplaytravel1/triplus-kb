@@ -585,8 +585,8 @@ function manTblHTML(prows,total,allRows){
 }
 
 /* ── 테이블 렌더 ── */
-var TBL_C={'증빙규정':['type','cat','case','content','remark'],'숙박비규정':['purpose','usergrp','pay_type','amount','option','remark'],'예외거리허용구간':['from','to','type','status'],'기타교통수단구간':['from','to','amount']};
-var TBL_H={'증빙규정':['증빙유형','분류','케이스','내용','비고'],'숙박비규정':['출장목적','사용자그룹','지급유형','금액','옵션','비고'],'예외거리허용구간':['출발지','도착지','구간유형','사용여부'],'기타교통수단구간':['출발지','도착지','정액요금']};
+var TBL_C={'증빙규정':['type','cat','case','content','remark'],'숙박비규정':['purpose','gubun','usergrp','dest','pay_type','amount','option','remark'],'예외거리허용구간':['from','to','type','status'],'기타교통수단구간':['from','to','amount']};
+var TBL_H={'증빙규정':['증빙유형','분류','케이스','내용','비고'],'숙박비규정':['출장목적','구분','사용자그룹','행선지','지급유형','금액','옵션','비고'],'예외거리허용구간':['출발지','도착지','구간유형','사용여부'],'기타교통수단구간':['출발지','도착지','정액요금']};
 function renderTbl(m,tname,title){
   var cols=TBL_C[tname]||[],heads=TBL_H[tname]||[];
   var rows=(DATA.tables[tname]||[]).filter(function(r){if(!KW)return true;var kw=KW.toLowerCase();return cols.some(function(k){return (r[k]||'').toLowerCase().indexOf(kw)>=0;});});
@@ -853,7 +853,7 @@ function openAdd(col,src){
   document.getElementById('modal').classList.add('open');
 }
 function openEdit(col,id,tbl){
-  EDIT_ID=id;EDIT_COL=col;EDIT_TBL=tbl||null;
+  EDIT_ID=id;EDIT_COL=col;EDIT_TBL=(tbl&&tbl!=='undefined')?tbl:null;
   var data=col==='qa'?DATA.qa.find(function(r){return r._id===id;}):col==='manual'?DATA.manual.find(function(r){return r._id===id;}):(DATA.tables[tbl]||[]).find(function(r){return r._id===id;});
   // 기존 'img' 단일 필드 → img0으로 마이그레이션 (하위 호환)
   if(data && data.img && !data.img0) { data = Object.assign({}, data, {img0: data.img}); }
@@ -885,22 +885,24 @@ async function doSave(){
       if(k in data && data[k]==='') delete data[k];
     });
     var sid;
+    var tblName = EDIT_TBL || data.tableName || null;
     if(EDIT_ID){await db.collection(EDIT_COL).doc(EDIT_ID).update(data);sid=EDIT_ID;}
     else{var nid=EDIT_COL+'_'+Date.now();data.id=nid;await db.collection(EDIT_COL).doc(nid).set(data);sid=nid;}
     LAST_NEW_ID=sid;CUR=1;msg.textContent='✅ 저장 완료! (검색 반영까지 최대 6시간 소요)';
     try{ localStorage.setItem('triplus_kb_ver', String(Date.now() + 6 * 60 * 60 * 1000)); }catch(e){}
-    // Firestore 재읽기 없이 메모리만 패치
-    patchSave(EDIT_COL, sid, data, EDIT_TBL);
+    // Firestore 재읽기 없이 메모리만 패치 후 즉시 화면 반영
+    patchSave(EDIT_COL, sid, data, tblName);
     setTimeout(function(){closeModal();render();},500);
   }catch(e){msg.textContent='❌ '+e.message;msg.className='modal-msg err';}
 }
 async function doDelete(){
   if(!EDIT_ID||!confirm('삭제하시겠습니까? 복구 불가합니다.'))return;
+  var tblName = EDIT_TBL || null;
   await db.collection(EDIT_COL).doc(EDIT_ID).delete();
   LAST_NEW_ID=null;closeModal();
   try{ localStorage.setItem('triplus_kb_ver', String(Date.now() + 6 * 60 * 60 * 1000)); }catch(e){}
-  // Firestore 재읽기 없이 메모리만 패치
-  patchDelete(EDIT_COL, EDIT_ID, EDIT_TBL);
+  // Firestore 재읽기 없이 메모리만 패치 후 즉시 화면 반영
+  patchDelete(EDIT_COL, EDIT_ID, tblName);
   render();
 }
 
