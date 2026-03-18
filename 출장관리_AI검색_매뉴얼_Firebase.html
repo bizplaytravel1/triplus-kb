@@ -1,6 +1,44 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
+<script>
+/* ══ FAQ 아코디언 - 모든 환경(로컬/온라인)에서 독립 동작 ══ */
+(function() {
+  function handleFAQ(e) {
+    var el = e.target;
+    // 클릭된 요소부터 위로 올라가며 .qa-q 찾기
+    while (el && el !== document.body) {
+      if (el.classList && el.classList.contains('qa-q')) {
+        // .qa-q의 부모가 .qa-item
+        var item = el.parentNode;
+        while (item && !item.classList.contains('qa-item')) {
+          item = item.parentNode;
+        }
+        if (item) {
+          item.classList.toggle('open');
+          e.stopPropagation();
+        }
+        return;
+      }
+      el = el.parentNode;
+    }
+  }
+  // DOM 준비 전/후 모두 대응
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function() {
+      document.body.addEventListener('click', handleFAQ, true);
+    });
+  } else {
+    document.body.addEventListener('click', handleFAQ, true);
+  }
+  // onclick="toggleQA(this)" 대응용 전역 함수
+  window.toggleQA = function(el) {
+    var item = el;
+    while (item && !item.classList.contains('qa-item')) item = item.parentNode;
+    if (item) item.classList.toggle('open');
+  };
+})();
+</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>출장관리 AI 검색 매뉴얼</title>
@@ -162,6 +200,23 @@ mark{background:rgba(79,142,247,.25);color:var(--accent);border-radius:3px;paddi
     --border:#DDE3F0;
   }
   .dom-manual *{margin:0;padding:0;box-sizing:border-box}
+  .dom-manual{background:var(--light);min-height:100%}
+  .dom-manual .dom-page-header{
+    max-width:980px;
+    margin:0 auto;
+    padding:20px 40px 8px;
+  }
+  .dom-manual .dom-page-header h2{font-size:20px;font-weight:800;color:var(--primary);margin-bottom:6px}
+  .dom-manual .dom-page-header p{font-size:13px;color:var(--muted)}
+  .dom-manual .toc-inner{
+    max-width:980px;
+    margin:0 auto;
+    display:flex;
+    gap:4px;
+    overflow-x:auto;
+    scrollbar-width:none;
+  }
+  .dom-manual .toc-inner::-webkit-scrollbar{display:none}
   .dom-manual body{
     font-family:'Noto Sans KR',sans-serif;
     background:var(--light);
@@ -246,15 +301,6 @@ mark{background:rgba(79,142,247,.25);color:var(--accent);border-radius:3px;paddi
     z-index:100;
     box-shadow:0 2px 12px rgba(0,0,0,0.06);
   }
-  .dom-manual .toc-inner{
-    max-width:980px;
-    margin:0 auto;
-    display:flex;
-    gap:4px;
-    overflow-x:auto;
-    scrollbar-width:none;
-  }
-  .dom-manual .toc-inner::-webkit-scrollbar{display:none}
   .dom-manual .toc-item{
     display:flex;
     align-items:center;
@@ -529,8 +575,9 @@ mark{background:rgba(79,142,247,.25);color:var(--accent);border-radius:3px;paddi
     border:1px solid var(--border);
     border-radius:14px;
     overflow:hidden;
-    transition:all .2s;
+    transition:border-color .2s;
   }
+  .dom-manual .qa-item.open{overflow:visible}
   .dom-manual .qa-item:hover{border-color:var(--accent)}
   .dom-manual .qa-q{
     display:flex;
@@ -583,7 +630,7 @@ mark{background:rgba(79,142,247,.25);color:var(--accent);border-radius:3px;paddi
     color:var(--accent);
     margin-right:4px;
   }
-  .dom-manual .qa-item.open .qa-a{display:block}
+  .dom-manual .qa-item.open .qa-a{display:block!important}
   .dom-manual .small{
     font-size:12px;
     color:var(--muted);
@@ -771,11 +818,10 @@ mark{background:rgba(79,142,247,.25);color:var(--accent);border-radius:3px;paddi
 </div>
 
 <div class="page dom-manual" id="page-domman">
-<div class="cat-page" style="padding:0">
-  <div style="padding:16px 20px 4px">
-    <h2>📘 국내출장 매뉴얼</h2>
-    <p class="cat-desc">트리플러스(Trip+) 국내출장 전체 가이드 — 신청·예약·정산 프로세스 안내</p>
-  </div>
+<div class="dom-page-header">
+  <h2>📘 국내출장 매뉴얼</h2>
+  <p>트리플러스(Trip+) 국내출장 전체 가이드 — 신청·예약·정산 프로세스 안내</p>
+</div>
   <div class="toc-bar">
   <div class="toc-inner">
     <a class="toc-item" href="#sec1"><span class="toc-num">01</span> 무엇인지</a>
@@ -1764,7 +1810,6 @@ mark{background:rgba(79,142,247,.25);color:var(--accent);border-radius:3px;paddi
 
 
 
-</div>
 </div>
 
 <div class="page" id="page-nanyang">
@@ -3007,16 +3052,17 @@ init();
   }
 
   /* QA */
-  .qa-list { display: flex; flex-direction: column; gap: 12px; }
-  .qa-item {
+  .sinai-manual .qa-list { display: flex; flex-direction: column; gap: 12px; }
+  .sinai-manual .qa-item {
     background: var(--white);
     border: 1px solid var(--border);
     border-radius: 14px;
     overflow: hidden;
-    transition: all 0.2s;
+    transition: border-color 0.2s;
   }
-  .qa-item:hover { border-color: var(--accent); }
-  .qa-q {
+  .sinai-manual .qa-item.open { overflow: visible; }
+  .sinai-manual .qa-item:hover { border-color: var(--accent); }
+  .sinai-manual .qa-q {
     display: flex;
     align-items: flex-start;
     gap: 12px;
@@ -3024,7 +3070,7 @@ init();
     cursor: pointer;
     user-select: none;
   }
-  .qa-q-mark {
+  .sinai-manual .qa-q-mark {
     flex-shrink: 0;
     width: 26px;
     height: 26px;
@@ -3039,21 +3085,21 @@ init();
     font-weight: 700;
     margin-top: 1px;
   }
-  .qa-q-text {
+  .sinai-manual .qa-q-text {
     flex: 1;
     font-size: 14px;
     font-weight: 600;
     color: var(--text);
     line-height: 1.5;
   }
-  .qa-arrow {
+  .sinai-manual .qa-arrow {
     font-size: 12px;
     color: var(--muted);
     margin-top: 5px;
     transition: transform 0.2s;
   }
-  .qa-item.open .qa-arrow { transform: rotate(180deg); }
-  .qa-a {
+  .sinai-manual .qa-item.open .qa-arrow { transform: rotate(180deg); }
+  .sinai-manual .qa-a {
     display: none;
     padding: 0 22px 18px 60px;
     font-size: 13px;
@@ -3062,13 +3108,13 @@ init();
     border-top: 1px solid var(--border);
     padding-top: 16px;
   }
-  .qa-a-mark {
+  .sinai-manual .qa-a-mark {
     display: inline-block;
     font-weight: 700;
     color: var(--accent);
     margin-right: 4px;
   }
-  .qa-item.open .qa-a { display: block; }
+  .sinai-manual .qa-item.open .qa-a { display: block !important; }
 
   /* HIGHLIGHT */
   .highlight {
@@ -3660,10 +3706,7 @@ init();
 </div>
 
 <script>
-  function toggleQA(el) {
-    const item = el.closest('.qa-item');
-    item.classList.toggle('open');
-  }
+  /* toggleQA: head에서 처리 */
 
   // 스무스 스크롤
   document.querySelectorAll('a[href^="#"]').forEach(a => {
