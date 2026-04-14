@@ -1835,6 +1835,26 @@ var firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 var db = firebase.firestore();
 
+// ── 접속/검색 로그 기록 ──────────────────────────────────────────
+function logAccess(type, extra) {
+  try {
+    var doc = {
+      type: type,
+      ts: new Date().toISOString(),
+      ts_ms: Date.now(),
+      ua: navigator.userAgent,
+      lang: navigator.language || '',
+      screen: screen.width + 'x' + screen.height,
+      referrer: document.referrer || ''
+    };
+    if (extra) {
+      if (extra.query !== undefined) doc.query = extra.query;
+      if (extra.result_count !== undefined) doc.result_count = extra.result_count;
+    }
+    db.collection('access_logs').add(doc);
+  } catch(e) { /* 로그 실패는 무시 */ }
+}
+
 // ── localStorage 캐시 설정 ──────────────────────────────────────────
 var CACHE_KEY = "triplus_kb_cache";
 var CACHE_TTL = 24 * 60 * 60 * 1000; // 24시간 — Firestore 읽기 최소화
@@ -2245,6 +2265,7 @@ async function init() {
     renderGita();
     document.getElementById("initLoading").style.display = "none";
     document.getElementById("welcome").style.display = "block";
+    logAccess('visit', {});
 
   } catch(e) {
     console.error("[KB] 로딩 오류:", e);
@@ -2448,6 +2469,7 @@ async function doSearch() {
     var data=await resp.json();
     aiText.textContent=(data.content&&data.content[0])?data.content[0].text:"답변을 생성할 수 없습니다.";
   } catch(e) { aiText.textContent="검색된 "+top.length+"건의 결과를 아래에서 확인하세요."; }
+  logAccess('search', {query: query, result_count: scored.length});
   btn.disabled=false; btn.textContent="AI 검색";
   if(top.length===0){document.getElementById("noResults").style.display="block";return;}
   document.getElementById("resHdr").style.display="flex";
