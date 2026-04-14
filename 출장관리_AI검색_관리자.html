@@ -235,6 +235,7 @@ header{background:#1a1f36;padding:0 24px;display:flex;align-items:center;gap:16p
       <div class="sb-section">
         <div class="sb-label">📊 모니터링</div>
         <div class="sb-item" id="sb-logs" data-tab="logs">📊 접속 로그 <span class="sb-cnt" id="cn-logs">-</span></div>
+        <div class="sb-item" id="sb-admin-logs" data-tab="admin-logs">📋 관리자 로그 <span class="sb-cnt" id="cn-admin-logs">-</span></div>
       </div>
       <div class="sb-section">
         <div class="sb-label">⚙️ 설정 &amp; 도움말</div>
@@ -315,6 +316,42 @@ var CU=null, ALLOWED=[], DATA={qa:[],manual:[],tables:{},accounts:[]};
 var TAB='qa', PAGE=50, CUR=1, KW='', FILTER='all', IMG_FILTER='all';
 var EDIT_ID=null, EDIT_COL=null, EDIT_TBL=null, LAST_NEW_ID=null, XL_ROWS=[], XL_SRC='트리플러스', XL_MODE='qa', XL_TNAME='';
 
+/* ── 관리자 접속 현황 (Presence) ── */
+var PRESENCE_TIMER = null;
+
+function startPresence(email, displayName) {
+  var ref = db.collection('presence').doc(email);
+  var update = function() {
+    ref.set({ email: email, name: displayName || email, last_seen: firebase.firestore.FieldValue.serverTimestamp() }, { merge: true });
+  };
+  update();
+  if (PRESENCE_TIMER) clearInterval(PRESENCE_TIMER);
+  PRESENCE_TIMER = setInterval(update, 300000); // 5분마다 갱신
+  window.addEventListener('beforeunload', function() {
+    ref.delete(); // 탭/브라우저 닫을 때 삭제 (best-effort)
+  });
+}
+
+function stopPresence(email) {
+  if (PRESENCE_TIMER) { clearInterval(PRESENCE_TIMER); PRESENCE_TIMER = null; }
+  if (email) db.collection('presence').doc(email).delete();
+}
+
+/* ── 관리자 행동 로그 기록 ── */
+function logAdminAction(action, detail) {
+  if (!CU) return;
+  try {
+    db.collection('admin_action_logs').add({
+      action  : action,
+      email   : CU.email,
+      name    : CU.displayName || CU.email,
+      detail  : detail || '',
+      ts      : new Date().toISOString(),
+      ts_ms   : Date.now()
+    });
+  } catch(e) { /* 로그 실패 무시 */ }
+}
+
 /* ── 디바운스 ── */
 function debounce(fn,d){var t=null;return function(){var a=arguments,ctx=this;clearTimeout(t);t=setTimeout(function(){fn.apply(ctx,a);},d);};}
 var debouncedSearch=debounce(function(v){KW=v;CUR=1;render();},300);
@@ -364,6 +401,8 @@ auth.onAuthStateChanged(async function(u){
   try{var s=await db.collection('admin_accounts').get();ALLOWED=s.docs.map(function(d){return d.data().email;});}catch(e){}
   if(ALLOWED.length>0&&ALLOWED.indexOf(u.email)<0){auth.signOut();showLoginErr('❌ 접근 불가: '+u.email);return;}
   CU=u;
+  startPresence(u.email, u.displayName || u.email);
+  logAdminAction('login', '관리자 페이지 접속');
   document.getElementById('login-screen').style.display='none';
   document.getElementById('admin-app').style.display='block';
   document.getElementById('uem').textContent=u.email;
@@ -441,8 +480,9 @@ function updateCounts(){
 
 /* ── 탭 이동 ── */
 function go(tab){
-  // 접속 로그 탭을 벗어날 때 onSnapshot 구독 해제 (Firebase 연결 비용 절약)
+  // 탭 이탈 시 onSnapshot 구독 해제
   if(TAB==='logs' && tab!=='logs') logsUnsubscribe();
+  if(TAB==='admin-logs' && tab!=='admin-logs') adminLogsUnsubscribe();
   TAB=tab;CUR=1;KW='';FILTER='all';IMG_FILTER='all';LAST_NEW_ID=null;
   document.querySelectorAll('.sb-item').forEach(function(e){e.classList.remove('active');});
   var sb=document.getElementById('sb-'+tab);if(sb)sb.classList.add('active');
@@ -467,6 +507,7 @@ function render(){
   else if(TAB==='gita')     renderTbl(m,'기타교통수단구간','🚌 기타교통수단');
   else if(TAB==='accounts')    renderAccounts(m);
   else if(TAB==='logs')        renderLogs(m);
+  else if(TAB==='admin-logs')  renderAdminLogs(m);
   else if(TAB==='help-search') renderHelpSearch(m);
   else if(TAB==='help-admin')  renderHelpAdmin(m);
 }
@@ -986,32 +1027,217 @@ function renderLogs(m) {
   });
 }
 
+/* ── 관리자 행동 로그 ── */
+var ADMIN_LOGS_DATA = null;
+var ADMIN_LOGS_UNSUB = null;
+var ADMIN_LOGS_INIT = false;
+var ADMIN_LOGS_KW = '';
+var ADMIN_LOGS_TYPE = 'all';
+var ADMIN_LOGS_CUR = 1;
+var ADMIN_LOGS_PAGE = 50;
+
+function adminLogsUnsubscribe() {
+  if (ADMIN_LOGS_UNSUB) { ADMIN_LOGS_UNSUB(); ADMIN_LOGS_UNSUB = null; }
+  ADMIN_LOGS_INIT = false;
+}
+
+var ACTION_LABEL = {
+  'login'      : { label:'🔑 로그인',   color:'#2563eb', bg:'#dbeafe' },
+  'add'        : { label:'➕ 항목 추가', color:'#059669', bg:'#d1fae5' },
+  'edit'       : { label:'✏️ 항목 수정', color:'#d97706', bg:'#fef3c7' },
+  'delete'     : { label:'🗑️ 항목 삭제', color:'#dc2626', bg:'#fee2e2' },
+  'add_account': { label:'👤 계정 추가', color:'#7c3aed', bg:'#ede9fe' },
+  'del_account': { label:'👤 계정 삭제', color:'#be123c', bg:'#ffe4e6' },
+  'bulk_add'   : { label:'📊 일괄 등록', color:'#0891b2', bg:'#cffafe' },
+  'publish'    : { label:'⚡ 즉시 반영', color:'#b45309', bg:'#fef9c3' }
+};
+
+function renderAdminLogs(m) {
+  if (!ADMIN_LOGS_DATA) {
+    m.innerHTML = '<div style="padding:40px;text-align:center;color:#94a3c0;font-size:14px">⏳ 관리자 로그 연결 중...</div>';
+    if (!ADMIN_LOGS_UNSUB) {
+      ADMIN_LOGS_UNSUB = db.collection('admin_action_logs')
+        .orderBy('ts_ms','desc').limit(500)
+        .onSnapshot(function(snap) {
+          if (!ADMIN_LOGS_INIT) {
+            ADMIN_LOGS_DATA = snap.docs.map(function(d){ var x=d.data(); x._id=d.id; return x; });
+            ADMIN_LOGS_INIT = true;
+          } else {
+            snap.docChanges().forEach(function(ch) {
+              var x=ch.doc.data(); x._id=ch.doc.id;
+              if (ch.type==='added')    ADMIN_LOGS_DATA.unshift(x);
+              else if (ch.type==='modified') { var i=ADMIN_LOGS_DATA.findIndex(function(r){return r._id===x._id;}); if(i>=0)ADMIN_LOGS_DATA[i]=x; }
+              else if (ch.type==='removed')  ADMIN_LOGS_DATA=ADMIN_LOGS_DATA.filter(function(r){return r._id!==x._id;});
+            });
+            if (ADMIN_LOGS_DATA.length>500) ADMIN_LOGS_DATA=ADMIN_LOGS_DATA.slice(0,500);
+          }
+          var cntEl=document.getElementById('cn-admin-logs');
+          if(cntEl) cntEl.textContent=ADMIN_LOGS_DATA.length>=500?'500+':ADMIN_LOGS_DATA.length;
+          if(TAB==='admin-logs') renderAdminLogs(document.getElementById('main'));
+        }, function(e){ console.error('[ADMIN-LOG]',e); });
+    }
+    return;
+  }
+
+  var rows = ADMIN_LOGS_DATA;
+  if (ADMIN_LOGS_TYPE !== 'all') rows = rows.filter(function(r){ return r.action === ADMIN_LOGS_TYPE; });
+  if (ADMIN_LOGS_KW) {
+    var kw = ADMIN_LOGS_KW.toLowerCase();
+    rows = rows.filter(function(r){
+      return (r.email||'').toLowerCase().indexOf(kw)>=0
+          || (r.detail||'').toLowerCase().indexOf(kw)>=0
+          || (r.name||'').toLowerCase().indexOf(kw)>=0;
+    });
+  }
+  var total = rows.length;
+  var prows = rows.slice((ADMIN_LOGS_CUR-1)*ADMIN_LOGS_PAGE, ADMIN_LOGS_CUR*ADMIN_LOGS_PAGE);
+
+  // 요약 통계
+  var loginCnt  = ADMIN_LOGS_DATA.filter(function(r){return r.action==='login';}).length;
+  var addCnt    = ADMIN_LOGS_DATA.filter(function(r){return r.action==='add';}).length;
+  var editCnt   = ADMIN_LOGS_DATA.filter(function(r){return r.action==='edit';}).length;
+  var deleteCnt = ADMIN_LOGS_DATA.filter(function(r){return r.action==='delete';}).length;
+
+  var h = '<div class="page-hdr"><div class="page-title">📋 관리자 로그 <small>총 '+total+'건</small></div>';
+  h += '<div class="page-actions">';
+  h += '<span style="font-size:11px;color:#059669;background:#d1fae5;border:1px solid #6ee7b7;border-radius:8px;padding:5px 11px;font-weight:600">🟢 실시간 연결 중</span>';
+  h += '<button class="btn btn-ghost" id="alog-refresh-btn">🔄 초기화</button>';
+  h += '<button class="btn btn-danger" id="alog-clear-btn">🗑️ 로그 전체 삭제</button>';
+  h += '</div></div>';
+
+  // 통계 카드
+  h += '<div style="display:flex;gap:12px;margin-bottom:14px;flex-wrap:wrap">';
+  [['🔑 로그인',loginCnt,'#2563eb'],['➕ 추가',addCnt,'#059669'],['✏️ 수정',editCnt,'#d97706'],['🗑️ 삭제',deleteCnt,'#dc2626']].forEach(function(s){
+    h += '<div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:10px 18px;flex:1;min-width:100px">';
+    h += '<div style="font-size:11px;color:#94a3c0;font-weight:700;margin-bottom:2px">'+s[0]+'</div>';
+    h += '<div style="font-size:20px;font-weight:700;color:'+s[2]+'">'+s[1]+'</div></div>';
+  });
+  h += '</div>';
+
+  // 필터
+  h += '<div class="toolbar">';
+  h += '<div class="search-wrap"><input class="search-inp" id="alog-kw" placeholder="이메일, 이름, 내용으로 필터..." value="'+esc(ADMIN_LOGS_KW)+'"></div>';
+  h += '<div class="fchips">';
+  var types = [['all','전체'],['login','로그인'],['add','추가'],['edit','수정'],['delete','삭제'],['add_account','계정추가'],['del_account','계정삭제']];
+  types.forEach(function(t){
+    h += '<button class="fchip'+(ADMIN_LOGS_TYPE===t[0]?' on':'')+'" data-altype="'+t[0]+'">'+t[1]+'</button>';
+  });
+  h += '</div></div>';
+
+  // 테이블
+  h += '<div class="tbl-wrap"><table class="dtbl"><thead><tr><th>유형</th><th>관리자</th><th>이름</th><th>내용</th><th>일시</th></tr></thead><tbody>';
+  if (!prows.length) {
+    h += '<tr><td colspan="5" style="text-align:center;padding:30px;color:#94a3c0">기록이 없습니다.</td></tr>';
+  } else {
+    prows.forEach(function(r) {
+      var al = ACTION_LABEL[r.action] || { label: r.action, color:'#4b5680', bg:'#f1f5f9' };
+      var tag = '<span style="display:inline-block;background:'+al.bg+';color:'+al.color+';border-radius:6px;padding:2px 8px;font-size:11px;font-weight:700;white-space:nowrap">'+al.label+'</span>';
+      var dt = r.ts ? new Date(r.ts).toLocaleString('ko-KR',{timeZone:'Asia/Seoul'}) : '-';
+      h += '<tr>';
+      h += '<td>'+tag+'</td>';
+      h += '<td style="font-size:12px">'+esc(r.email||'-')+'</td>';
+      h += '<td style="font-size:12px">'+esc(r.name||'-')+'</td>';
+      h += '<td class="clip-lg" style="font-size:12px" title="'+esc(r.detail||'')+'">'+esc(r.detail||'-')+'</td>';
+      h += '<td style="font-size:11px;color:#4b5680;white-space:nowrap">'+dt+'</td>';
+      h += '</tr>';
+    });
+  }
+  h += '</tbody></table>';
+
+  // 페이저
+  var tp = Math.ceil(total/ADMIN_LOGS_PAGE);
+  if (tp>1) {
+    h += '<div class="pager"><span>'+((ADMIN_LOGS_CUR-1)*ADMIN_LOGS_PAGE+1)+'-'+Math.min(ADMIN_LOGS_CUR*ADMIN_LOGS_PAGE,total)+' / '+total+'건</span><div class="pager-btns">';
+    h += '<button class="pb" data-alp="'+(ADMIN_LOGS_CUR-1)+'" '+(ADMIN_LOGS_CUR<=1?'disabled':'')+'>이전</button>';
+    var s=Math.max(1,ADMIN_LOGS_CUR-2),e=Math.min(tp,s+4);
+    for(var i=s;i<=e;i++) h+='<button class="pb'+(i===ADMIN_LOGS_CUR?' on':'')+'" data-alp="'+i+'">'+i+'</button>';
+    h += '<button class="pb" data-alp="'+(ADMIN_LOGS_CUR+1)+'" '+(ADMIN_LOGS_CUR>=tp?'disabled':'')+'>다음</button>';
+    h += '</div></div>';
+  }
+  h += '</div>';
+  m.innerHTML = h;
+
+  // 이벤트
+  m.querySelector('#alog-refresh-btn').addEventListener('click', function(){
+    adminLogsUnsubscribe(); ADMIN_LOGS_DATA=null; ADMIN_LOGS_CUR=1; renderAdminLogs(m);
+  });
+  m.querySelector('#alog-clear-btn').addEventListener('click', async function(){
+    if (!confirm('관리자 로그 전체를 삭제할까요?')) return;
+    this.disabled=true; this.textContent='삭제 중...';
+    adminLogsUnsubscribe();
+    var snap2 = await db.collection('admin_action_logs').limit(500).get();
+    var batch = db.batch(); snap2.docs.forEach(function(d){batch.delete(d.ref)}); await batch.commit();
+    ADMIN_LOGS_DATA=[]; ADMIN_LOGS_CUR=1;
+    var cn=document.getElementById('cn-admin-logs'); if(cn) cn.textContent='0';
+    renderAdminLogs(m);
+  });
+  m.querySelector('#alog-kw').addEventListener('input', function(){ ADMIN_LOGS_KW=this.value; ADMIN_LOGS_CUR=1; renderAdminLogs(m); });
+  m.querySelectorAll('[data-altype]').forEach(function(b){ b.addEventListener('click', function(){ ADMIN_LOGS_TYPE=this.dataset.altype; ADMIN_LOGS_CUR=1; renderAdminLogs(m); }); });
+  m.querySelectorAll('[data-alp]').forEach(function(b){ b.addEventListener('click', function(){ var p=parseInt(this.dataset.alp); if(!isNaN(p)&&p>=1){ADMIN_LOGS_CUR=p;renderAdminLogs(m);} }); });
+}
+
 /* ── 관리자 계정 ── */
-function renderAccounts(m){
-  var h='<div class="page-hdr"><div class="page-title">👤 관리자 계정</div>';
-  h+='<div class="page-actions"><button class="btn btn-success" id="add-acc-btn">+ 계정 추가</button></div></div>';
-  h+='<div class="tbl-wrap"><table class="dtbl"><thead><tr><th>이메일</th><th>추가일</th><th>추가한 계정</th><th style="width:70px">관리</th></tr></thead><tbody>';
-  if(!DATA.accounts.length)h+='<tr><td colspan="4" class="empty">등록된 계정 없음 (모든 구글 계정 접근 가능!)</td></tr>';
+async function renderAccounts(m){
+  // presence 컬렉션에서 현재 접속자 목록 로드 (3분 이내 heartbeat = 접속 중)
+  var presMap = {};
+  try {
+    var snap = await db.collection('presence').get();
+    var now = Date.now();
+    snap.docs.forEach(function(d){
+      var p = d.data();
+      var ms = p.last_seen ? p.last_seen.toMillis() : 0;
+      presMap[p.email] = { online: now - ms < 10 * 60 * 1000, name: p.name||'', last_seen: ms };
+    });
+  } catch(e) { /* presence 읽기 실패 시 무시 */ }
+
+  var onlineCnt = Object.values(presMap).filter(function(p){ return p.online; }).length;
+
+  var h='<div class="page-hdr"><div class="page-title">👤 관리자 계정 <small>현재 접속 '+onlineCnt+'명</small></div>';
+  h+='<div class="page-actions">';
+  h+='<button class="btn btn-ghost" id="acc-refresh-btn">🔄 새로고침</button>';
+  h+='<button class="btn btn-success" id="add-acc-btn">+ 계정 추가</button>';
+  h+='</div></div>';
+
+  h+='<div class="tbl-wrap"><table class="dtbl"><thead><tr><th>상태</th><th>이메일</th><th>이름</th><th>마지막 접속</th><th>추가일</th><th>추가한 계정</th><th style="width:60px">관리</th></tr></thead><tbody>';
+  if(!DATA.accounts.length) h+='<tr><td colspan="7" class="empty">등록된 계정 없음 (모든 구글 계정 접근 가능!)</td></tr>';
   DATA.accounts.forEach(function(a){
-    h+='<tr><td>'+esc(a.email)+'</td><td style="font-size:11px;color:#94a3c0">'+esc(a.added_at||'')+'</td><td style="font-size:11px;color:#94a3c0">'+esc(a.added_by||'')+'</td>';
-    h+='<td><button class="btn btn-danger btn-sm" data-delacc="'+a._id+'">삭제</button></td></tr>';
+    var p = presMap[a.email];
+    var isOnline = p && p.online;
+    var statusTag = isOnline
+      ? '<span style="display:inline-flex;align-items:center;gap:4px;background:#d1fae5;color:#065f46;border-radius:20px;padding:2px 10px;font-size:11px;font-weight:700">🟢 접속</span>'
+      : '<span style="display:inline-flex;align-items:center;gap:4px;background:#f1f5f9;color:#94a3c0;border-radius:20px;padding:2px 10px;font-size:11px;font-weight:600">⚫ 미접속</span>';
+    var nameStr  = (p && p.name) ? esc(p.name) : '<span style="color:#94a3c0">-</span>';
+    var lastStr  = (p && p.last_seen)
+      ? new Date(p.last_seen).toLocaleString('ko-KR',{timeZone:'Asia/Seoul',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'})
+      : '<span style="color:#94a3c0">기록 없음</span>';
+    h+='<tr>';
+    h+='<td>'+statusTag+'</td>';
+    h+='<td style="font-size:12px">'+esc(a.email)+'</td>';
+    h+='<td style="font-size:12px">'+nameStr+'</td>';
+    h+='<td style="font-size:11px;color:#4b5680;white-space:nowrap">'+lastStr+'</td>';
+    h+='<td style="font-size:11px;color:#94a3c0">'+esc(a.added_at||'')+'</td>';
+    h+='<td style="font-size:11px;color:#94a3c0">'+esc(a.added_by||'')+'</td>';
+    h+='<td><button class="btn btn-danger btn-sm" data-delacc="'+a._id+'">삭제</button></td>';
+    h+='</tr>';
   });
   h+='</tbody></table></div>';
   h+='<div style="margin-top:12px;background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;padding:12px 16px;font-size:13px;color:#92400e;line-height:1.8">⚠️ 계정 목록이 비어있으면 모든 구글 계정이 접근 가능합니다. 최소 1개 이상 유지하세요!</div>';
   m.innerHTML=h;
-  var btn=m.querySelector('#add-acc-btn');
-  if(btn)btn.addEventListener('click',function(){addAcc();});
-  m.querySelectorAll('[data-delacc]').forEach(function(el){el.addEventListener('click',function(){delAcc(this.dataset.delacc);});});
+  m.querySelector('#acc-refresh-btn').addEventListener('click', function(){ renderAccounts(m); });
+  m.querySelector('#add-acc-btn').addEventListener('click', function(){ addAcc(); });
+  m.querySelectorAll('[data-delacc]').forEach(function(el){ el.addEventListener('click', function(){ delAcc(this.dataset.delacc); }); });
 }
 async function addAcc(){
   var em=prompt('추가할 구글 이메일:');if(!em||!em.includes('@'))return;
   var ref=await db.collection('admin_accounts').add({email:em.trim().toLowerCase(),added_at:new Date().toISOString().split('T')[0],added_by:CU.email});
+  logAdminAction('add_account', em.trim().toLowerCase());
   DATA.accounts.push({_id:ref.id,email:em.trim().toLowerCase(),added_at:new Date().toISOString().split('T')[0],added_by:CU.email});
   renderAccounts(document.getElementById('main'));
 }
 async function delAcc(id){
   if(!confirm('삭제하시겠습니까?'))return;
   await db.collection('admin_accounts').doc(id).delete();
+  logAdminAction('del_account', id);
   DATA.accounts=DATA.accounts.filter(function(a){return a._id!==id;});
   renderAccounts(document.getElementById('main'));
 }
@@ -1123,8 +1349,8 @@ async function doSave(){
     });
     var sid;
     var tblName = EDIT_TBL || data.tableName || null;
-    if(EDIT_ID){await db.collection(EDIT_COL).doc(EDIT_ID).update(data);sid=EDIT_ID;}
-    else{var nid=EDIT_COL+'_'+Date.now();data.id=nid;await db.collection(EDIT_COL).doc(nid).set(data);sid=nid;}
+    if(EDIT_ID){await db.collection(EDIT_COL).doc(EDIT_ID).update(data);sid=EDIT_ID;logAdminAction('edit', EDIT_COL+' / '+sid+(data.s?' / '+data.s:'')+(data.q?' : '+String(data.q).slice(0,40):''));}
+    else{var nid=EDIT_COL+'_'+Date.now();data.id=nid;await db.collection(EDIT_COL).doc(nid).set(data);sid=nid;logAdminAction('add', EDIT_COL+(data.s?' / '+data.s:'')+(data.q?' : '+String(data.q).slice(0,40):''));}
     LAST_NEW_ID=sid;CUR=1;msg.textContent='✅ 저장 완료! (검색 반영까지 최대 6시간 소요)';
     try{ localStorage.setItem('triplus_kb_ver', String(Date.now() + 6 * 60 * 60 * 1000)); }catch(e){}
     // Firestore 재읽기 없이 메모리만 패치 후 즉시 화면 반영
@@ -1136,6 +1362,7 @@ async function doDelete(){
   if(!EDIT_ID||!confirm('삭제하시겠습니까? 복구 불가합니다.'))return;
   var tblName = EDIT_TBL || null;
   await db.collection(EDIT_COL).doc(EDIT_ID).delete();
+  logAdminAction('delete', EDIT_COL+' / '+EDIT_ID);
   LAST_NEW_ID=null;closeModal();
   try{ localStorage.setItem('triplus_kb_ver', String(Date.now() + 6 * 60 * 60 * 1000)); }catch(e){}
   // Firestore 재읽기 없이 메모리만 패치 후 즉시 화면 반영
@@ -1405,7 +1632,7 @@ function instantPublish(){
 /* ── DOM 이벤트 연결 (onclick 대신 addEventListener 사용) ── */
 document.getElementById('login-btn').addEventListener('click', signIn);
 document.getElementById('instant-publish-btn').addEventListener('click', instantPublish);
-document.getElementById('logout-btn').addEventListener('click', function(){ auth.signOut().then(function(){location.reload();}); });
+document.getElementById('logout-btn').addEventListener('click', function(){ stopPresence(CU&&CU.email); auth.signOut().then(function(){location.reload();}); });
 document.getElementById('modal').addEventListener('click', function(e){ if(e.target===this)closeModal(); });
 document.getElementById('modal-cancel').addEventListener('click', closeModal);
 document.getElementById('modal-save').addEventListener('click', doSave);
