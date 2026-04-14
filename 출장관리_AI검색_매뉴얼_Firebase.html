@@ -2099,7 +2099,7 @@ function renderNanyang() {
       ansHtml = esc(item.answer).replace(/\n/g,'<br>');
     }
     var rem = item.remark ? '<div class="remark">\uD83D\uDCCE '+hlTerms(item.remark,[])+'</div>' : '';
-    out += '<div class="ov-card" id="'+cardId+'">';
+    out += '<div class="ov-card" id="'+cardId+'" data-allidx="'+allItems.indexOf(item)+'">';
     out += '<div class="ov-card-head" onclick="nyToggle(\''+cardId+'\')" style="cursor:pointer">';
     out += '<span class="ov-cat" style="background:#fef9c3;color:#854d0e">'+esc(item.category)+'</span>';
     if(item.item) out += '<span style="font-size:10px;color:var(--text3);flex-shrink:0;margin-right:4px">'+esc(item.item)+'</span>';
@@ -2112,24 +2112,32 @@ function renderNanyang() {
   }
   if(!out) out = '<p style="padding:40px;text-align:center;color:var(--text2)">\uAC80\uC0C9 \uACB0\uACFC\uAC00 \uC5C6\uC2B5\uB2C8\uB2E4.</p>';
   document.getElementById('ny-body').innerHTML = out;
-  // 검색어 있으면 전체 펼치기 + lazy 이미지 활성화
+  // 검색어 있으면 전체 펼치기 — base64·Storage 이미지 모두 처리
   if(nkw) {
-    var cards = document.querySelectorAll('#ny-body .ov-card');
-    cards.forEach(function(c){
+    document.querySelectorAll('#ny-body .ov-card').forEach(function(c){
       var b = c.querySelector('[class^="ov-body"]');
-      if(b){ b.style.display='block'; activateLazyImgs(b); }
+      if (b) {
+        b.style.display = 'block';
+        var allIdx = parseInt(c.getAttribute('data-allidx'));
+        loadCardImg(allIdx, b, 'ny-thumb');
+      }
     });
   }
 }
 
 function nyToggle(cardId) {
-  var body = document.querySelector('.ny-body-'+cardId);
+  var card  = document.getElementById(cardId);
+  var body  = document.querySelector('.ny-body-'+cardId);
   var arrow = document.querySelector('.ny-arrow-'+cardId);
-  if(!body) return;
+  if (!body) return;
   var open = body.style.display !== 'none';
   body.style.display = open ? 'none' : 'block';
-  if(arrow) arrow.innerHTML = open ? '&#9660;' : '&#9650;';
-  if (!open) activateLazyImgs(body); // 섹션 열릴 때만 이미지 로드
+  if (arrow) arrow.innerHTML = open ? '&#9660;' : '&#9650;';
+  if (!open) {
+    // data-allidx로 allItems 인덱스 확인 → base64/Storage 통합 처리
+    var allIdx = card ? parseInt(card.getAttribute('data-allidx')) : NaN;
+    loadCardImg(allIdx, body, 'ny-thumb');
+  }
 }
 
 // 이미지 썸네일 클릭 이벤트 위임 (ny-thumb · common-thumb 공통)
@@ -2158,7 +2166,7 @@ function renderOverseas() {
   for(var ii=0; ii<items.length; ii++) {
     var item = items[ii];
     var ans = esc(item.answer).replace(/\n/g,'<br>');
-    out += '<div class="ov-card">';
+    out += '<div class="ov-card" data-allidx="'+allItems.indexOf(item)+'">';
     out += '<div class="ov-card-head">';
     out += '<span class="ov-cat">'+esc(item.category)+'</span>';
     out += '<span class="ov-title">'+esc(item.question)+'</span>';
@@ -2169,8 +2177,11 @@ function renderOverseas() {
   }
   if(!out) out = '<p style="padding:40px;text-align:center;color:var(--text2)">검색 결과가 없습니다.</p>';
   document.getElementById('ov-body').innerHTML = out;
-  // 해외출장 이미지는 항상 표시 → 렌더 즉시 lazy 활성화
-  activateLazyImgs(document.getElementById('ov-body'));
+  // 해외출장은 항상 표시 → Storage URL은 즉시 활성화, base64(_hasImg)는 Firestore 1건씩 로드
+  document.querySelectorAll('#ov-body .ov-card').forEach(function(c) {
+    var allIdx = parseInt(c.getAttribute('data-allidx'));
+    loadCardImg(allIdx, c, 'ov-thumb');
+  });
   // 썸네일 onclick 이벤트 위임 (data-src 방식으로 싱글쿼트 충돌 회피)
   document.querySelectorAll('.ov-thumb').forEach(function(el) {
     el.onclick = function() {
@@ -2357,13 +2368,51 @@ function quickSearch(q) {
 }
 window.quickSearch = quickSearch;
 
-/* 이미지 lazy load 활성화 — data-src → src 교체 (Firebase Storage 대역폭 절약) */
+/* ── 이미지 공통 유틸 ──────────────────────────────────────────── */
+
+// data-src → src 교체 (Storage URL 이미지 lazy 활성화)
 function activateLazyImgs(container) {
   if (!container) return;
   container.querySelectorAll('img[data-src]').forEach(function(img) {
     img.src = img.getAttribute('data-src');
     img.removeAttribute('data-src');
   });
+}
+
+/**
+ * 카드/섹션이 열릴 때 이미지를 로드하는 통합 함수
+ * - Storage URL 이미지: data-src → src 활성화
+ * - base64(_hasImg=true): Firestore에서 해당 문서 1건만 읽어 주입
+ * @param {number} allIdx  allItems 배열 인덱스
+ * @param {Element} container  이미지가 들어갈 DOM 요소
+ * @param {string} thumbClass  buildImgHtml에 전달할 thumb 클래스명
+ */
+function loadCardImg(allIdx, container, thumbClass) {
+  if (!container) return;
+  var item = (!isNaN(allIdx) && allIdx >= 0) ? allItems[allIdx] : null;
+
+  if (item && item._hasImg && item._docId && !item._imgFetched) {
+    // ── base64 이미지: 캐시에서 제거됐으므로 Firestore에서 해당 문서 1건만 읽음
+    item._imgFetched = true;
+    var col = (item.type === 'qa') ? 'qa' : 'manual';
+    var IMG_F = ['img','img0','img1','img2','img3','img4','img_caption','img1_caption','img2_caption'];
+    db.collection(col).doc(item._docId).get().then(function(doc) {
+      if (!doc.exists) return;
+      var d = doc.data();
+      IMG_F.forEach(function(f){ if (d[f]) item[f] = d[f]; });
+      item._hasImg = false;
+      var imgHtml = buildImgHtml(item, thumbClass || 'common-thumb');
+      if (imgHtml) {
+        var existing = container.querySelector('.ref-imgs');
+        if (existing) existing.outerHTML = imgHtml;
+        else container.insertAdjacentHTML('beforeend', imgHtml);
+        activateLazyImgs(container); // 주입 직후 즉시 활성화
+      }
+    }).catch(function(e){ console.warn('[IMG] Firestore 이미지 로드 실패:', e); });
+  } else {
+    // ── Storage URL 이미지: data-src → src
+    activateLazyImgs(container);
+  }
 }
 
 function toggleCard(idx) {
@@ -2376,50 +2425,8 @@ function toggleCard(idx) {
   ans.classList.toggle("open", !isOpen);
   if (qel) qel.classList.toggle("open", !isOpen);
   card.querySelector(".arrow").textContent = isOpen ? "\u25bc" : "\u25b2";
-
-  // 카드가 열릴 때만 이미지 로드 (Storage 대역폭 절약)
-  if (!isOpen) {
-    var item = allItems[idx];
-    if (item && item._hasImg && item._docId && !item._imgFetched) {
-      // base64 이미지 — 카드 열릴 때 해당 문서 1건만 Firestore에서 읽음
-      item._imgFetched = true;
-      var col = (item.type === 'qa') ? 'qa' : 'manual';
-      var IMG_FIELDS = ['img','img0','img1','img2','img3','img4','img_caption','img1_caption','img2_caption'];
-      db.collection(col).doc(item._docId).get().then(function(doc) {
-        if (!doc.exists) return;
-        var d = doc.data();
-        IMG_FIELDS.forEach(function(f){ if (d[f]) item[f] = d[f]; });
-        item._hasImg = false;
-        // 새로 로드된 이미지를 카드 ans 영역에 주입
-        var imgBlock = ans.querySelector('.ref-imgs');
-        var newHtml = '';
-        var imgList = [
-          {src:item.img,  cap:item.img_caption||''},
-          {src:item.img0, cap:''},
-          {src:item.img1, cap:item.img1_caption||''},
-          {src:item.img2, cap:item.img2_caption||''},
-          {src:item.img3, cap:''},
-          {src:item.img4, cap:''}
-        ].filter(function(x){ return !!x.src; });
-        if (imgList.length) {
-          newHtml = '<div class="ref-imgs"><div style="font-size:11px;color:var(--accent2);font-weight:700;margin-bottom:4px">🖼️ 첨부 이미지 (클릭하면 확대)</div>';
-          imgList.forEach(function(im) {
-            var fs = (im.src.startsWith('http')||im.src.startsWith('data:')) ? im.src : 'data:image/png;base64,'+im.src;
-            newHtml += '<div class="ref-thumb url-img-thumb" data-imgsrc="'+esc(fs)+'" data-imgcap="'+esc(im.cap)+'">';
-            newHtml += '<img src="'+esc(fs)+'" alt="'+esc(im.cap)+'" style="max-height:120px;object-fit:cover">';
-            if (im.cap) newHtml += '<div class="ref-thumb-label">'+esc(im.cap)+'</div>';
-            newHtml += '</div>';
-          });
-          newHtml += '</div>';
-        }
-        if (imgBlock) imgBlock.outerHTML = newHtml;
-        else ans.insertAdjacentHTML('beforeend', newHtml);
-      }).catch(function(e){ console.warn('[IMG] 이미지 로드 실패:', e); });
-    } else {
-      // Storage URL 이미지 — data-src → src 활성화
-      activateLazyImgs(ans);
-    }
-  }
+  // 카드가 열릴 때만 이미지 로드 (Storage 대역폭·Firestore 읽기 절약)
+  if (!isOpen) loadCardImg(idx, ans, 'url-img-thumb');
 }
 
 function copyAns(idx, e) {
