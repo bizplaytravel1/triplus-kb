@@ -1937,52 +1937,10 @@ async function loadFromFirestore() {
     for (var ci = 0; ci < cached.items.length; ci++) allItems.push(cached.items[ci]);
     TD = cached.td;
 
-    // base64 이미지가 있었던 항목(_hasImg=true)은 Firestore에서 이미지 필드만 재취득
-    var needImgItems = cached.items.filter(function(it){ return it._hasImg && it._docId; });
-    var needImgQa    = (cached.qaDocs||[]).filter(function(q){ return q._hasImg && (q.id||q._docId); });
-    if (needImgItems.length > 0 || needImgQa.length > 0) {
-      console.log('[KB] base64 이미지 재로드 대상 — manual:', needImgItems.length, 'qa:', needImgQa.length);
-      var IMG_FIELDS = ['img','img0','img1','img2','img3','img4','img_caption','img1_caption','img2_caption'];
-      var patchPromises = [];
-      needImgItems.forEach(function(cached_item) {
-        patchPromises.push(
-          db.collection('manual').doc(cached_item._docId).get().then(function(doc) {
-            if (!doc.exists) return;
-            var d = doc.data();
-            // allItems 내 해당 항목 찾아서 이미지 필드 패치
-            for (var ai = 0; ai < allItems.length; ai++) {
-              if (allItems[ai]._docId === cached_item._docId) {
-                IMG_FIELDS.forEach(function(f){ if (d[f]) allItems[ai][f] = d[f]; });
-                allItems[ai]._hasImg = false;
-                break;
-              }
-            }
-          }).catch(function(e){ console.warn('[KB] 이미지 재로드 실패:', e); })
-        );
-      });
-      needImgQa.forEach(function(cached_q) {
-        var docId = cached_q._docId || cached_q.id;
-        patchPromises.push(
-          db.collection('qa').doc(docId).get().then(function(doc) {
-            if (!doc.exists) return;
-            var d = doc.data();
-            for (var ai = 0; ai < allItems.length; ai++) {
-              if (allItems[ai]._docId === docId) {
-                IMG_FIELDS.forEach(function(f){ if (d[f]) allItems[ai][f] = d[f]; });
-                allItems[ai]._hasImg = false;
-                break;
-              }
-            }
-          }).catch(function(e){ console.warn('[KB] 이미지 재로드 실패(qa):', e); })
-        );
-      });
-      // 비동기 재로드 완료 후 화면 갱신
-      Promise.all(patchPromises).then(function() {
-        console.log('[KB] base64 이미지 재로드 완료 — 화면 갱신');
-        if (typeof renderNanyang === 'function') renderNanyang();
-        if (typeof renderResults === 'function') renderResults();
-      });
-    }
+    // base64 이미지는 캐시에서 제외되어 _hasImg=true로 표시됨
+    // → 카드를 실제로 열 때 해당 문서 1건만 읽는 방식으로 변경 (toggleCard 참고)
+    // → 페이지 로드 시 일괄 Firestore 읽기 제거 (Firebase 읽기 절약)
+    console.log('[KB] 캐시 히트 — 이미지는 카드 열람 시 1건씩 지연 로드');
 
     return { manCnt: cached.manCnt, qaDocs: cached.qaDocs, fromCache: true };
   }
@@ -2086,7 +2044,7 @@ function buildImgHtml(item, thumbClass) {
     var fullSrc = (raw.startsWith('http') || raw.startsWith('data:')) ? raw : 'data:image/png;base64,' + raw;
     var cap = esc(srcs[i].cap);
     h += '<div class="ref-thumb ' + cls + '" data-imgsrc="' + esc(fullSrc) + '" data-imgcap="' + cap + '">';
-    h += '<img src="' + esc(fullSrc) + '" alt="' + cap + '" style="max-height:120px;object-fit:cover">';
+    h += '<img data-src="' + esc(fullSrc) + '" alt="' + cap + '" style="max-height:120px;object-fit:cover;background:var(--surface2)">';
     if (srcs[i].cap) h += '<div class="ref-thumb-label">' + cap + '</div>';
     h += '</div>';
   }
@@ -2154,10 +2112,13 @@ function renderNanyang() {
   }
   if(!out) out = '<p style="padding:40px;text-align:center;color:var(--text2)">\uAC80\uC0C9 \uACB0\uACFC\uAC00 \uC5C6\uC2B5\uB2C8\uB2E4.</p>';
   document.getElementById('ny-body').innerHTML = out;
-  // 검색어 있으면 전체 펼치기
+  // 검색어 있으면 전체 펼치기 + lazy 이미지 활성화
   if(nkw) {
     var cards = document.querySelectorAll('#ny-body .ov-card');
-    cards.forEach(function(c){ var b = c.querySelector('[class^="ov-body"]'); if(b) b.style.display='block'; });
+    cards.forEach(function(c){
+      var b = c.querySelector('[class^="ov-body"]');
+      if(b){ b.style.display='block'; activateLazyImgs(b); }
+    });
   }
 }
 
@@ -2168,6 +2129,7 @@ function nyToggle(cardId) {
   var open = body.style.display !== 'none';
   body.style.display = open ? 'none' : 'block';
   if(arrow) arrow.innerHTML = open ? '&#9660;' : '&#9650;';
+  if (!open) activateLazyImgs(body); // 섹션 열릴 때만 이미지 로드
 }
 
 // 이미지 썸네일 클릭 이벤트 위임 (ny-thumb · common-thumb 공통)
@@ -2207,6 +2169,8 @@ function renderOverseas() {
   }
   if(!out) out = '<p style="padding:40px;text-align:center;color:var(--text2)">검색 결과가 없습니다.</p>';
   document.getElementById('ov-body').innerHTML = out;
+  // 해외출장 이미지는 항상 표시 → 렌더 즉시 lazy 활성화
+  activateLazyImgs(document.getElementById('ov-body'));
   // 썸네일 onclick 이벤트 위임 (data-src 방식으로 싱글쿼트 충돌 회피)
   document.querySelectorAll('.ov-thumb').forEach(function(el) {
     el.onclick = function() {
@@ -2393,16 +2357,69 @@ function quickSearch(q) {
 }
 window.quickSearch = quickSearch;
 
+/* 이미지 lazy load 활성화 — data-src → src 교체 (Firebase Storage 대역폭 절약) */
+function activateLazyImgs(container) {
+  if (!container) return;
+  container.querySelectorAll('img[data-src]').forEach(function(img) {
+    img.src = img.getAttribute('data-src');
+    img.removeAttribute('data-src');
+  });
+}
+
 function toggleCard(idx) {
-  var card=document.getElementById("card-"+idx);
-  var ans=document.getElementById("ans-"+idx);
-  var qel=document.getElementById("cq-"+idx);
-  if(!card||!ans) return;
-  var isOpen=card.classList.contains("open");
-  card.classList.toggle("open",!isOpen);
-  ans.classList.toggle("open",!isOpen);
-  if(qel) qel.classList.toggle("open",!isOpen);
+  var card = document.getElementById("card-"+idx);
+  var ans  = document.getElementById("ans-"+idx);
+  var qel  = document.getElementById("cq-"+idx);
+  if (!card || !ans) return;
+  var isOpen = card.classList.contains("open");
+  card.classList.toggle("open", !isOpen);
+  ans.classList.toggle("open", !isOpen);
+  if (qel) qel.classList.toggle("open", !isOpen);
   card.querySelector(".arrow").textContent = isOpen ? "\u25bc" : "\u25b2";
+
+  // 카드가 열릴 때만 이미지 로드 (Storage 대역폭 절약)
+  if (!isOpen) {
+    var item = allItems[idx];
+    if (item && item._hasImg && item._docId && !item._imgFetched) {
+      // base64 이미지 — 카드 열릴 때 해당 문서 1건만 Firestore에서 읽음
+      item._imgFetched = true;
+      var col = (item.type === 'qa') ? 'qa' : 'manual';
+      var IMG_FIELDS = ['img','img0','img1','img2','img3','img4','img_caption','img1_caption','img2_caption'];
+      db.collection(col).doc(item._docId).get().then(function(doc) {
+        if (!doc.exists) return;
+        var d = doc.data();
+        IMG_FIELDS.forEach(function(f){ if (d[f]) item[f] = d[f]; });
+        item._hasImg = false;
+        // 새로 로드된 이미지를 카드 ans 영역에 주입
+        var imgBlock = ans.querySelector('.ref-imgs');
+        var newHtml = '';
+        var imgList = [
+          {src:item.img,  cap:item.img_caption||''},
+          {src:item.img0, cap:''},
+          {src:item.img1, cap:item.img1_caption||''},
+          {src:item.img2, cap:item.img2_caption||''},
+          {src:item.img3, cap:''},
+          {src:item.img4, cap:''}
+        ].filter(function(x){ return !!x.src; });
+        if (imgList.length) {
+          newHtml = '<div class="ref-imgs"><div style="font-size:11px;color:var(--accent2);font-weight:700;margin-bottom:4px">🖼️ 첨부 이미지 (클릭하면 확대)</div>';
+          imgList.forEach(function(im) {
+            var fs = (im.src.startsWith('http')||im.src.startsWith('data:')) ? im.src : 'data:image/png;base64,'+im.src;
+            newHtml += '<div class="ref-thumb url-img-thumb" data-imgsrc="'+esc(fs)+'" data-imgcap="'+esc(im.cap)+'">';
+            newHtml += '<img src="'+esc(fs)+'" alt="'+esc(im.cap)+'" style="max-height:120px;object-fit:cover">';
+            if (im.cap) newHtml += '<div class="ref-thumb-label">'+esc(im.cap)+'</div>';
+            newHtml += '</div>';
+          });
+          newHtml += '</div>';
+        }
+        if (imgBlock) imgBlock.outerHTML = newHtml;
+        else ans.insertAdjacentHTML('beforeend', newHtml);
+      }).catch(function(e){ console.warn('[IMG] 이미지 로드 실패:', e); });
+    } else {
+      // Storage URL 이미지 — data-src → src 활성화
+      activateLazyImgs(ans);
+    }
+  }
 }
 
 function copyAns(idx, e) {
@@ -2513,7 +2530,7 @@ async function doSearch() {
         var _modalSrc = (_src.startsWith('http')||_src.startsWith('data:')) ? _src : 'data:image/png;base64,'+_src;
         var _dispSrc  = (_src.startsWith('http')||_src.startsWith('data:')) ? _src : 'data:image/png;base64,'+_src;
         html += '<div class="ref-thumb url-img-thumb" data-imgsrc="'+esc(_modalSrc)+'" data-imgcap="'+_cap+'">';
-        html += '<img src="'+esc(_dispSrc)+'" alt="'+_cap+'" style="max-height:120px;object-fit:cover">';
+        html += '<img data-src="'+esc(_dispSrc)+'" alt="'+_cap+'" style="max-height:120px;object-fit:cover;background:var(--surface2)">';
         if(_imgs[_ii].cap) html += '<div class="ref-thumb-label">'+_cap+'</div>';
         html += '</div>';
       }

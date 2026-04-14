@@ -441,6 +441,8 @@ function updateCounts(){
 
 /* ── 탭 이동 ── */
 function go(tab){
+  // 접속 로그 탭을 벗어날 때 onSnapshot 구독 해제 (Firebase 연결 비용 절약)
+  if(TAB==='logs' && tab!=='logs') logsUnsubscribe();
   TAB=tab;CUR=1;KW='';FILTER='all';IMG_FILTER='all';LAST_NEW_ID=null;
   document.querySelectorAll('.sb-item').forEach(function(e){e.classList.remove('active');});
   var sb=document.getElementById('sb-'+tab);if(sb)sb.classList.add('active');
@@ -754,24 +756,101 @@ function downloadExcel(key){
 }
 function _today(){var d=new Date();return d.getFullYear()+''+(d.getMonth()+1+'').padStart(2,'0')+(''+d.getDate()).padStart(2,'0');}
 
-/* ── 접속 로그 ── */
-var LOGS_DATA = null;
-var LOGS_CUR = 1;
-var LOGS_KW = '';
-var LOGS_TYPE = 'all';
-var LOGS_PAGE = 50;
+/* ── 접속 로그 (Firestore onSnapshot — 변경분만 읽기) ── */
+var LOGS_DATA      = null;
+var LOGS_CUR       = 1;
+var LOGS_KW        = '';
+var LOGS_TYPE      = 'all';
+var LOGS_PAGE      = 50;
+var LOGS_LAST_TS   = null;
+var LOGS_UNSUB     = null;   // onSnapshot 구독 해제 함수
+var LOGS_INIT_DONE = false;  // 최초 전체 로드 완료 여부
 
-async function loadLogs() {
-  var snap = await db.collection('access_logs').orderBy('ts_ms','desc').limit(500).get();
-  LOGS_DATA = snap.docs.map(function(d){ var x=d.data(); x._id=d.id; return x; });
-  document.getElementById('cn-logs').textContent = LOGS_DATA.length >= 500 ? '500+' : LOGS_DATA.length;
-  renderLogs(document.getElementById('main'));
+/* 구독 해제 (다른 탭으로 이동 시 호출) */
+function logsUnsubscribe() {
+  if (LOGS_UNSUB) { LOGS_UNSUB(); LOGS_UNSUB = null; }
+  LOGS_INIT_DONE = false;
+}
+
+/* 토스트 메시지 (읽기 방해 없이 우측 상단에 3초 표시) */
+function showLogsToast(msg) {
+  var toast = document.getElementById('logs-toast');
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.id = 'logs-toast';
+    toast.style.cssText = 'position:fixed;top:68px;right:20px;z-index:5000;'
+      +'background:#059669;color:#fff;border-radius:10px;padding:10px 18px;'
+      +'font-size:13px;font-weight:600;box-shadow:0 4px 16px rgba(0,0,0,.2);'
+      +'transition:opacity .5s;pointer-events:none;';
+    document.body.appendChild(toast);
+  }
+  toast.textContent = msg;
+  toast.style.opacity = '1';
+  clearTimeout(toast._to);
+  toast._to = setTimeout(function(){ toast.style.opacity = '0'; }, 3000);
+}
+
+/* onSnapshot 구독 시작 */
+function logsSubscribe() {
+  if (LOGS_UNSUB) return;   // 이미 구독 중이면 중복 방지
+  var m = document.getElementById('main');
+
+  LOGS_UNSUB = db.collection('access_logs')
+    .orderBy('ts_ms', 'desc')
+    .limit(500)
+    .onSnapshot(function(snap) {
+
+      if (!LOGS_INIT_DONE) {
+        /* ① 최초 전체 로드 — get()과 동일한 읽기 비용 (1회만 발생) */
+        LOGS_DATA = snap.docs.map(function(d){ var x=d.data(); x._id=d.id; return x; });
+        LOGS_INIT_DONE = true;
+        LOGS_LAST_TS = new Date();
+        LOGS_CUR = 1;
+        var cntEl = document.getElementById('cn-logs');
+        if (cntEl) cntEl.textContent = LOGS_DATA.length >= 500 ? '500+' : LOGS_DATA.length;
+        if (TAB === 'logs') renderLogs(m);
+
+      } else {
+        /* ② 이후 변경분만 수신 — 추가/수정/삭제된 문서 수만큼만 읽기 과금 */
+        var changes = snap.docChanges();
+        var addedCnt = 0;
+        changes.forEach(function(change) {
+          var x = change.doc.data(); x._id = change.doc.id;
+          if (change.type === 'added') {
+            LOGS_DATA.unshift(x);   // 최신순이므로 맨 앞에 삽입
+            addedCnt++;
+          } else if (change.type === 'modified') {
+            var idx = LOGS_DATA.findIndex(function(r){ return r._id === x._id; });
+            if (idx >= 0) LOGS_DATA[idx] = x;
+          } else if (change.type === 'removed') {
+            LOGS_DATA = LOGS_DATA.filter(function(r){ return r._id !== x._id; });
+          }
+        });
+        if (LOGS_DATA.length > 500) LOGS_DATA = LOGS_DATA.slice(0, 500);
+        LOGS_LAST_TS = new Date();
+
+        var cntEl = document.getElementById('cn-logs');
+        if (cntEl) cntEl.textContent = LOGS_DATA.length >= 500 ? '500+' : LOGS_DATA.length;
+
+        if (TAB !== 'logs') return;
+
+        /* 스크롤·페이지 위치 그대로 유지하며 화면만 갱신 */
+        var scrollY = window.scrollY || window.pageYOffset;
+        renderLogs(m);
+        window.scrollTo(0, scrollY);
+
+        if (addedCnt > 0) showLogsToast('🔔 새 로그 +' + addedCnt + '건');
+      }
+
+    }, function(err) {
+      console.error('[LOGS] onSnapshot 오류:', err);
+    });
 }
 
 function renderLogs(m) {
   if (!LOGS_DATA) {
-    m.innerHTML = '<div style="padding:40px;text-align:center;color:#94a3c0;font-size:14px">⏳ 로그 불러오는 중...</div>';
-    loadLogs();
+    m.innerHTML = '<div style="padding:40px;text-align:center;color:#94a3c0;font-size:14px">⏳ 로그 연결 중...</div>';
+    logsSubscribe();
     return;
   }
   var rows = LOGS_DATA;
@@ -784,16 +863,23 @@ function renderLogs(m) {
           || (r.lang||'').toLowerCase().indexOf(kw)>=0;
     });
   }
-  var total = rows.length;
-  var prows = rows.slice((LOGS_CUR-1)*LOGS_PAGE, LOGS_CUR*LOGS_PAGE);
+  var total  = rows.length;
+  var prows  = rows.slice((LOGS_CUR-1)*LOGS_PAGE, LOGS_CUR*LOGS_PAGE);
+  var lastStr = LOGS_LAST_TS ? LOGS_LAST_TS.toLocaleTimeString('ko-KR') : '-';
 
-  var h = '<div class="page-hdr"><div class="page-title">📊 접속 로그 <small>최근 '+total+'건</small></div>';
+  // ── 헤더
+  var h = '<div class="page-hdr"><div class="page-title">📊 접속 로그 <small>총 '+total+'건</small></div>';
   h += '<div class="page-actions">';
-  h += '<button class="btn btn-ghost" id="logs-refresh-btn">🔄 새로고침</button>';
+  h += '<span style="font-size:11px;color:#059669;background:#d1fae5;border:1px solid #6ee7b7;'
+     + 'border-radius:8px;padding:5px 11px;font-weight:600">🟢 실시간 연결 중</span>';
+  h += '<button class="btn btn-ghost" id="logs-refresh-btn">🔄 초기화</button>';
   h += '<button class="btn btn-danger" id="logs-clear-btn">🗑️ 로그 전체 삭제</button>';
   h += '</div></div>';
 
-  // 필터
+  h += '<div style="font-size:11px;color:#94a3c0;margin-bottom:10px;margin-top:-8px">'
+     + '마지막 수신: '+lastStr+' &nbsp;·&nbsp; 새 로그 발생 시 자동 반영 (Firebase 읽기 최소화)</div>';
+
+  // ── 필터
   h += '<div class="toolbar">';
   h += '<div class="search-wrap"><input class="search-inp" id="logs-kw" placeholder="검색어, 브라우저로 필터..." value="'+esc(LOGS_KW)+'"></div>';
   h += '<div class="fchips">';
@@ -803,8 +889,8 @@ function renderLogs(m) {
   });
   h += '</div></div>';
 
-  // 통계 요약
-  var visitCnt = LOGS_DATA.filter(function(r){return r.type==='visit';}).length;
+  // ── 통계 요약
+  var visitCnt  = LOGS_DATA.filter(function(r){return r.type==='visit';}).length;
   var searchCnt = LOGS_DATA.filter(function(r){return r.type==='search';}).length;
   h += '<div style="display:flex;gap:12px;margin-bottom:14px;flex-wrap:wrap">';
   h += '<div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:12px 20px;flex:1;min-width:120px">';
@@ -818,52 +904,47 @@ function renderLogs(m) {
   h += '<div style="font-size:14px;font-weight:700;color:#4b5680">최근 500건</div></div>';
   h += '</div>';
 
+  // ── 테이블
   h += '<div class="tbl-wrap"><table class="dtbl">';
   h += '<thead><tr><th>유형</th><th>일시</th><th>검색어</th><th>결과수</th><th>언어</th><th>브라우저 / OS</th><th>화면</th></tr></thead><tbody>';
-
   if (prows.length === 0) {
     h += '<tr><td colspan="7" style="text-align:center;padding:30px;color:#94a3c0">데이터가 없습니다.</td></tr>';
   } else {
     prows.forEach(function(r) {
-      var typeTag = r.type==='search'
-        ? '<span class="tag t-ok">검색</span>'
-        : '<span class="tag t-off">방문</span>';
-      var dt = r.ts ? new Date(r.ts).toLocaleString('ko-KR',{timeZone:'Asia/Seoul'}) : '-';
+      var typeTag = r.type==='search' ? '<span class="tag t-ok">검색</span>' : '<span class="tag t-off">방문</span>';
+      var dt  = r.ts ? new Date(r.ts).toLocaleString('ko-KR',{timeZone:'Asia/Seoul'}) : '-';
       var query = r.query ? esc(r.query) : '<span style="color:#94a3c0">-</span>';
       var resCnt = r.result_count !== undefined ? r.result_count : '-';
-      var lang = esc(r.lang||'-');
-      // UA 파싱 (간단)
       var ua = r.ua || '';
-      var browser = '알 수 없음';
-      if (ua.indexOf('Edg') >= 0) browser = 'Edge';
-      else if (ua.indexOf('Chrome') >= 0) browser = 'Chrome';
-      else if (ua.indexOf('Firefox') >= 0) browser = 'Firefox';
-      else if (ua.indexOf('Safari') >= 0) browser = 'Safari';
+      var browser = '기타';
+      if (ua.indexOf('Edg')>=0)     browser='Edge';
+      else if (ua.indexOf('Chrome')>=0)  browser='Chrome';
+      else if (ua.indexOf('Firefox')>=0) browser='Firefox';
+      else if (ua.indexOf('Safari')>=0)  browser='Safari';
       var os = '';
-      if (ua.indexOf('Windows') >= 0) os = 'Windows';
-      else if (ua.indexOf('Mac') >= 0) os = 'Mac';
-      else if (ua.indexOf('Android') >= 0) os = 'Android';
-      else if (ua.indexOf('iPhone')||ua.indexOf('iPad')) os = 'iOS';
-      var scr = esc(r.screen||'-');
+      if (ua.indexOf('Windows')>=0) os='Windows';
+      else if (ua.indexOf('Mac')>=0) os='Mac';
+      else if (ua.indexOf('Android')>=0) os='Android';
+      else if (ua.indexOf('iPhone')>=0||ua.indexOf('iPad')>=0) os='iOS';
       h += '<tr>';
       h += '<td>'+typeTag+'</td>';
       h += '<td style="white-space:nowrap;font-size:12px">'+dt+'</td>';
       h += '<td class="clip-lg">'+query+'</td>';
       h += '<td class="td-r">'+(r.type==='search'?resCnt:'-')+'</td>';
-      h += '<td style="font-size:12px">'+lang+'</td>';
+      h += '<td style="font-size:12px">'+esc(r.lang||'-')+'</td>';
       h += '<td style="font-size:12px">'+esc(browser)+(os?' / '+esc(os):'')+'</td>';
-      h += '<td style="font-size:12px">'+scr+'</td>';
+      h += '<td style="font-size:12px">'+esc(r.screen||'-')+'</td>';
       h += '</tr>';
     });
   }
   h += '</tbody></table>';
 
-  // 페이저
+  // ── 페이저
   var tp = Math.ceil(total/LOGS_PAGE);
   if (tp > 1) {
     h += '<div class="pager"><span>'+((LOGS_CUR-1)*LOGS_PAGE+1)+'-'+Math.min(LOGS_CUR*LOGS_PAGE,total)+' / '+total+'건</span><div class="pager-btns">';
     h += '<button class="pb" data-lp="'+(LOGS_CUR-1)+'" '+(LOGS_CUR<=1?'disabled':'')+'>이전</button>';
-    var s=Math.max(1,LOGS_CUR-2),e=Math.min(tp,s+4);
+    var s=Math.max(1,LOGS_CUR-2), e=Math.min(tp,s+4);
     for(var i=s;i<=e;i++) h+='<button class="pb'+(i===LOGS_CUR?' on':'')+'" data-lp="'+i+'">'+i+'</button>';
     h += '<button class="pb" data-lp="'+(LOGS_CUR+1)+'" '+(LOGS_CUR>=tp?'disabled':'')+'>다음</button>';
     h += '</div></div>';
@@ -871,34 +952,36 @@ function renderLogs(m) {
   h += '</div>';
   m.innerHTML = h;
 
-  // 이벤트
+  // ── 이벤트 바인딩
   document.getElementById('logs-refresh-btn').addEventListener('click', function(){
+    /* 구독 재시작 → 최초 전체 로드 1회 발생 (수동 초기화 시만) */
+    logsUnsubscribe();
     LOGS_DATA = null; LOGS_CUR = 1;
     renderLogs(m);
   });
   document.getElementById('logs-clear-btn').addEventListener('click', async function(){
     if (!confirm('접속 로그 전체를 삭제할까요?\n이 작업은 되돌릴 수 없습니다.')) return;
     this.disabled = true; this.textContent = '삭제 중...';
+    /* 삭제 중 onSnapshot 이벤트가 대량 발생하지 않도록 잠시 구독 해제 */
+    logsUnsubscribe();
     var snap = await db.collection('access_logs').limit(500).get();
     var batch = db.batch();
     snap.docs.forEach(function(d){ batch.delete(d.ref); });
     await batch.commit();
     LOGS_DATA = []; LOGS_CUR = 1;
-    document.getElementById('cn-logs').textContent = '0';
-    renderLogs(m);
+    var cntEl = document.getElementById('cn-logs'); if(cntEl) cntEl.textContent='0';
+    renderLogs(m);  // 빈 화면 렌더 후 재구독
   });
   document.getElementById('logs-kw').addEventListener('input', function(){
     LOGS_KW = this.value; LOGS_CUR = 1; renderLogs(m);
   });
   m.querySelectorAll('[data-ltype]').forEach(function(btn){
-    btn.addEventListener('click', function(){
-      LOGS_TYPE = this.dataset.ltype; LOGS_CUR = 1; renderLogs(m);
-    });
+    btn.addEventListener('click', function(){ LOGS_TYPE=this.dataset.ltype; LOGS_CUR=1; renderLogs(m); });
   });
   m.querySelectorAll('[data-lp]').forEach(function(btn){
     btn.addEventListener('click', function(){
-      var p = parseInt(this.dataset.lp);
-      if (!isNaN(p) && p >= 1) { LOGS_CUR = p; renderLogs(m); }
+      var p=parseInt(this.dataset.lp);
+      if(!isNaN(p)&&p>=1){ LOGS_CUR=p; renderLogs(m); }
     });
   });
 }
