@@ -117,6 +117,11 @@ header{background:#1a1f36;padding:0 24px;display:flex;align-items:center;gap:16p
 .xl-prog-bar{background:linear-gradient(90deg,#2563eb,#059669);height:8px;border-radius:6px;width:0%;transition:width .3s}
 .doc{background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:36px;line-height:1.9;font-size:14px;max-width:800px}
 .doc h2{font-size:17px;font-weight:700;color:#2563eb;margin:28px 0 10px;padding-bottom:8px;border-bottom:2px solid #eff6ff}
+.role-badge{font-size:11px;border-radius:20px;padding:3px 10px;white-space:nowrap;font-weight:700;border:1px solid transparent}
+.role-master{background:#dbeafe;color:#1d4ed8;border-color:#bfdbfe}
+.role-manager{background:#d1fae5;color:#065f46;border-color:#a7f3d0}
+.role-visitor{background:#f1f5f9;color:#64748b;border-color:#e2e8f0}
+.perm-deny{opacity:.38;cursor:not-allowed!important;pointer-events:none}
 .doc h2:first-child{margin-top:0}
 .doc p,.doc li{color:#4b5680;margin-bottom:8px}
 .doc ul{padding-left:20px;margin-bottom:10px}
@@ -204,6 +209,7 @@ header{background:#1a1f36;padding:0 24px;display:flex;align-items:center;gap:16p
     <div class="hdr-right">
       <span id="publish-status" style="font-size:11px;color:#fbbf24;background:rgba(251,191,36,.15);border-radius:20px;padding:4px 12px;white-space:nowrap;display:none">⏳ 대기 중인 변경사항</span>
       <button id="instant-publish-btn" style="display:none;background:#f59e0b;border:none;border-radius:8px;padding:5px 12px;font-size:12px;cursor:pointer;color:#fff;font-family:'Noto Sans KR',sans-serif;font-weight:600;white-space:nowrap" title="대기 중인 변경사항을 즉시 검색에 반영합니다">⚡ 즉시 반영</button>
+      <span class="role-badge" id="role-badge" style="display:none"></span>
       <span class="user-chip" id="uem"></span>
       <button class="logout-btn" id="logout-btn">로그아웃</button>
     </div>
@@ -232,7 +238,7 @@ header{background:#1a1f36;padding:0 24px;display:flex;align-items:center;gap:16p
         <div class="sb-item" id="sb-yowei" data-tab="yowei">📍 예외거리구간 <span class="sb-cnt" id="cn-yowei">-</span></div>
         <div class="sb-item" id="sb-gita" data-tab="gita">🚌 기타교통수단 <span class="sb-cnt" id="cn-gita">-</span></div>
       </div>
-      <div class="sb-section">
+      <div class="sb-section" id="sb-section-monitor">
         <div class="sb-label">📊 모니터링</div>
         <div class="sb-item" id="sb-logs" data-tab="logs">📊 접속 로그 <span class="sb-cnt" id="cn-logs">-</span></div>
         <div class="sb-item" id="sb-admin-logs" data-tab="admin-logs">📋 관리자 로그 <span class="sb-cnt" id="cn-admin-logs">-</span></div>
@@ -315,6 +321,39 @@ var db=firebase.firestore(), auth=firebase.auth(), storage=firebase.storage();
 var CU=null, ALLOWED=[], DATA={qa:[],manual:[],tables:{},accounts:[]};
 var TAB='qa', PAGE=50, CUR=1, KW='', FILTER='all', IMG_FILTER='all';
 var EDIT_ID=null, EDIT_COL=null, EDIT_TBL=null, LAST_NEW_ID=null, XL_ROWS=[], XL_SRC='트리플러스', XL_MODE='qa', XL_TNAME='';
+
+/* ── 권한 등급 ── */
+var CU_ROLE = 'visitor'; // 'master' | 'manager' | 'visitor'
+var ROLE_META = {
+  master:  { label:'마스터',  cls:'role-master',  desc:'모든 권한' },
+  manager: { label:'매니저',  cls:'role-manager',  desc:'편집·삭제 가능 (모니터링·계정 관리 제외)' },
+  visitor: { label:'방문자',  cls:'role-visitor',  desc:'뷰 전용' }
+};
+function isMaster()  { return CU_ROLE === 'master'; }
+function canEdit()   { return CU_ROLE === 'master' || CU_ROLE === 'manager'; }
+
+function updateRoleBadge() {
+  var el = document.getElementById('role-badge');
+  if (!el) return;
+  var m = ROLE_META[CU_ROLE] || ROLE_META.visitor;
+  el.textContent = m.label;
+  el.className = 'role-badge ' + m.cls;
+  el.title = m.desc;
+  el.style.display = '';
+}
+
+function updateSidebarForRole() {
+  // 모니터링 섹션 전체: 마스터만 표시
+  var monSec = document.getElementById('sb-section-monitor');
+  if (monSec) monSec.style.display = isMaster() ? '' : 'none';
+  // 관리자 계정 메뉴: 마스터만 표시
+  var accItem = document.getElementById('sb-accounts');
+  if (accItem) accItem.style.display = isMaster() ? '' : 'none';
+  // 현재 탭이 마스터 전용인데 권한이 없으면 Q&A로 이동
+  if (!isMaster() && (TAB === 'logs' || TAB === 'admin-logs' || TAB === 'accounts')) {
+    go('qa');
+  }
+}
 
 /* ── 관리자 접속 현황 (Presence) ── */
 var PRESENCE_TIMER = null;
@@ -407,6 +446,8 @@ auth.onAuthStateChanged(async function(u){
   document.getElementById('uem').textContent=u.email;
   document.getElementById('main').innerHTML='<div class="loading"><div class="spin"></div><br>데이터 로딩 중...</div>';
   await loadAll();
+  updateRoleBadge();
+  updateSidebarForRole();
   go('qa'); checkPendingPublish();
 });
 
@@ -424,6 +465,10 @@ async function loadAll(){
   DATA.tables={};
   t.docs.forEach(function(d){var r=Object.assign({_id:d.id},d.data());var tn=r.tableName;if(!DATA.tables[tn])DATA.tables[tn]=[];DATA.tables[tn].push(r);});
   DATA.accounts=a.docs.map(function(d){return Object.assign({_id:d.id},d.data());});
+  // 현재 로그인 계정의 역할 결정 (role 미설정 계정은 마스터로 처리 — 하위 호환)
+  var myAcc = DATA.accounts.find(function(ac){ return ac.email === (CU && CU.email); });
+  if (!myAcc || !myAcc.role) { CU_ROLE = 'master'; }
+  else { CU_ROLE = myAcc.role; }
   updateCounts();
 }
 
@@ -561,26 +606,31 @@ function renderQA(m,src){
   var h='<div class="page-hdr"><div class="page-title">'+(src?getQTag(src)+' Q&A':'💬 Q&A 전체')+' <small>총 '+total+'건</small></div>';
   h+='<div class="page-actions">';
   h+='<button class="btn-dl-excel" data-dl-excel="qa|'+(src||'all')+'">⬇️ 엑셀 다운로드</button>';
-  h+='<button class="btn btn-purple" data-xl="'+defSrc+'">📊 엑셀 일괄 등록</button>';
-  h+='<button class="btn btn-success" data-add="qa|'+defSrc+'">+ Q&A 추가</button>';
+  if(canEdit()){
+    h+='<button class="btn btn-purple" data-xl="'+defSrc+'">📊 엑셀 일괄 등록</button>';
+    h+='<button class="btn btn-success" data-add="qa|'+defSrc+'">+ Q&A 추가</button>';
+  }
   h+='</div></div>';
   h+='<div class="toolbar">'+mkSearch('질문, 답변, 소스 검색...');
   if(!src){h+='<div class="fchips"><span class="fchip'+(FILTER==='all'?' on':'')+'" data-f="all">전체</span><span class="fchip'+(FILTER==='트리플러스'?' on':'')+'" data-f="트리플러스">트리플러스</span><span class="fchip'+(FILTER==='오큐파이'?' on':'')+'" data-f="오큐파이">오큐파이</span></div>';}
   h+=mkImgRadio();
   h+='</div>';
-  h+='<div style="display:flex;align-items:center;padding:6px 0 4px"><button class="btn-del-sel" id="btn-del-sel">🗑️ 선택 삭제</button><span class="sel-count" id="sel-count"></span></div>';
+  if(canEdit()){h+='<div style="display:flex;align-items:center;padding:6px 0 4px"><button class="btn-del-sel" id="btn-del-sel">🗑️ 선택 삭제</button><span class="sel-count" id="sel-count"></span></div>';}
   h+='<div class="tbl-wrap"><table class="dtbl" id="cur-tbl"><thead><tr>';
-  h+='<th class="cb-col"><input type="checkbox" class="th-cb" id="th-cb" title="전체선택"></th>';
-  h+='<th style="width:85px">소스</th><th style="width:85px">카테고리</th><th>질문</th><th>답변</th><th style="width:44px">이미지</th><th style="width:50px">AI제외</th><th style="width:60px">관리</th></tr></thead><tbody>';
+  if(canEdit())h+='<th class="cb-col"><input type="checkbox" class="th-cb" id="th-cb" title="전체선택"></th>';
+  h+='<th style="width:85px">소스</th><th style="width:85px">카테고리</th><th>질문</th><th>답변</th><th style="width:44px">이미지</th><th style="width:50px">AI제외</th>';
+  if(canEdit())h+='<th style="width:60px">관리</th>';
+  h+='</tr></thead><tbody>';
   if(!prows.length)h+='<tr><td colspan="8" class="empty">검색 결과 없음</td></tr>';
   prows.forEach(function(r){
     var isN=LAST_NEW_ID&&r._id===LAST_NEW_ID;
     var imgs=[r.img0,r.img1,r.img2,r.img3,r.img4,r.img].filter(Boolean);
     var imgHtml=imgs.length?'<img src="'+imgs[0]+'" class="tbl-thumb" title="이미지 '+imgs.length+'개">':'';
     h+='<tr'+(isN?' class="new-row"':'')+' data-id="'+r._id+'" data-col="qa">';
-    h+='<td class="cb-col"><input type="checkbox" class="row-cb" data-id="'+r._id+'" data-col="qa"></td>';
+    if(canEdit())h+='<td class="cb-col"><input type="checkbox" class="row-cb" data-id="'+r._id+'" data-col="qa"></td>';
     h+='<td>'+getQTag(r.s)+'</td><td style="font-size:11px;color:#94a3c0">'+esc(r.c||'')+'</td><td class="clip">'+esc(r.q||'')+'</td><td class="clip-lg">'+esc(r.a||'')+'</td><td>'+imgHtml+'</td><td>'+(r.xs?'<span class="tag t-xs">제외</span>':'')+'</td>';
-    h+='<td class="td-r"><button class="btn btn-warn btn-sm" data-edit="qa|'+r._id+'">수정</button></td></tr>';
+    if(canEdit())h+='<td class="td-r"><button class="btn btn-warn btn-sm" data-edit="qa|'+r._id+'">수정</button></td>';
+    h+='</tr>';
   });
   h+='</tbody></table>'+mkPager(total)+'</div>';
   m.innerHTML=h;bindEvents(m);bindCheckbox(m,rows);
@@ -597,11 +647,13 @@ function renderMan(m,sources,title){
   var h='<div class="page-hdr"><div class="page-title">'+title+' <small>총 '+total+'건</small></div>';
   h+='<div class="page-actions">';
   h+='<button class="btn-dl-excel" data-dl-excel="manual|'+srcKey+'">⬇️ 엑셀 다운로드</button>';
-  h+='<button class="btn btn-purple" data-xl="manual|'+defSrc+'">📊 엑셀 일괄 등록</button>';
-  h+='<button class="btn btn-success" data-add="manual|'+defSrc+'">+ 항목 추가</button>';
+  if(canEdit()){
+    h+='<button class="btn btn-purple" data-xl="manual|'+defSrc+'">📊 엑셀 일괄 등록</button>';
+    h+='<button class="btn btn-success" data-add="manual|'+defSrc+'">+ 항목 추가</button>';
+  }
   h+='</div></div>';
   h+='<div class="toolbar">'+mkSearch('소스, 카테고리, 질문, 답변 검색...')+mkImgRadio()+'</div>';
-  h+='<div style="display:flex;align-items:center;padding:6px 0 4px"><button class="btn-del-sel" id="btn-del-sel">🗑️ 선택 삭제</button><span class="sel-count" id="sel-count"></span></div>';
+  if(canEdit()){h+='<div style="display:flex;align-items:center;padding:6px 0 4px"><button class="btn-del-sel" id="btn-del-sel">🗑️ 선택 삭제</button><span class="sel-count" id="sel-count"></span></div>';}
   h+=manTblHTML(prows,total,rows);m.innerHTML=h;bindEvents(m);bindCheckbox(m,rows);
 }
 function renderManEtc(m){
@@ -609,24 +661,28 @@ function renderManEtc(m){
   rows=applyKF(rows,['q','a','s','c','it']);rows=sortNew(rows);
   var total=rows.length,prows=rows.slice((CUR-1)*PAGE,CUR*PAGE);
   var h='<div class="page-hdr"><div class="page-title">📋 기타 매뉴얼 <small>총 '+total+'건</small></div>';
-  h+='<div class="page-actions"><button class="btn btn-success" data-add="manual|증빙규정">+ 항목 추가</button></div></div>';
+  h+='<div class="page-actions">'+(canEdit()?'<button class="btn btn-success" data-add="manual|증빙규정">+ 항목 추가</button>':'')+'</div></div>';
   h+='<div class="toolbar">'+mkSearch('소스, 카테고리, 질문 검색...')+mkImgRadio()+'</div>';
-  h+='<div style="display:flex;align-items:center;padding:6px 0 4px"><button class="btn-del-sel" id="btn-del-sel">🗑️ 선택 삭제</button><span class="sel-count" id="sel-count"></span></div>';
+  if(canEdit()){h+='<div style="display:flex;align-items:center;padding:6px 0 4px"><button class="btn-del-sel" id="btn-del-sel">🗑️ 선택 삭제</button><span class="sel-count" id="sel-count"></span></div>';}
   h+=manTblHTML(prows,total,rows);m.innerHTML=h;bindEvents(m);bindCheckbox(m,rows);
 }
 function manTblHTML(prows,total,allRows){
+  var colCount = canEdit() ? 9 : 7;
   var h='<div class="tbl-wrap"><table class="dtbl" id="cur-tbl"><thead><tr>';
-  h+='<th class="cb-col"><input type="checkbox" class="th-cb" id="th-cb" title="전체선택"></th>';
-  h+='<th style="width:110px">소스</th><th style="width:70px">카테고리</th><th style="width:110px">항목명</th><th>질문</th><th>답변</th><th style="width:44px">이미지</th><th style="width:50px">AI제외</th><th style="width:60px">관리</th></tr></thead><tbody>';
-  if(!prows.length)h+='<tr><td colspan="9" class="empty">검색 결과 없음</td></tr>';
+  if(canEdit())h+='<th class="cb-col"><input type="checkbox" class="th-cb" id="th-cb" title="전체선택"></th>';
+  h+='<th style="width:110px">소스</th><th style="width:70px">카테고리</th><th style="width:110px">항목명</th><th>질문</th><th>답변</th><th style="width:44px">이미지</th><th style="width:50px">AI제외</th>';
+  if(canEdit())h+='<th style="width:60px">관리</th>';
+  h+='</tr></thead><tbody>';
+  if(!prows.length)h+='<tr><td colspan="'+colCount+'" class="empty">검색 결과 없음</td></tr>';
   prows.forEach(function(r){
     var isN=LAST_NEW_ID&&r._id===LAST_NEW_ID;
     var imgs=[r.img0,r.img1,r.img2,r.img3,r.img4,r.img].filter(Boolean);
     var mImgHtml=imgs.length?'<img src="'+imgs[0]+'" class="tbl-thumb" title="이미지 '+imgs.length+'개">':'';
     h+='<tr'+(isN?' class="new-row"':'')+' data-id="'+r._id+'" data-col="manual">';
-    h+='<td class="cb-col"><input type="checkbox" class="row-cb" data-id="'+r._id+'" data-col="manual"></td>';
+    if(canEdit())h+='<td class="cb-col"><input type="checkbox" class="row-cb" data-id="'+r._id+'" data-col="manual"></td>';
     h+='<td>'+getMTag(r.s)+'</td><td style="font-size:11px;color:#94a3c0">'+esc(r.c||'')+'</td><td class="clip" style="font-size:11px;color:#4b5680">'+esc(r.it||'')+'</td><td class="clip">'+esc(r.q||'')+'</td><td class="clip-lg">'+esc(r.a||'')+'</td><td>'+mImgHtml+'</td><td>'+(r.xs?'<span class="tag t-xs">제외</span>':'')+'</td>';
-    h+='<td class="td-r"><button class="btn btn-warn btn-sm" data-edit="manual|'+r._id+'">수정</button></td></tr>';
+    if(canEdit())h+='<td class="td-r"><button class="btn btn-warn btn-sm" data-edit="manual|'+r._id+'">수정</button></td>';
+    h+='</tr>';
   });
   return h+'</tbody></table>'+mkPager(total)+'</div>';
 }
@@ -642,22 +698,26 @@ function renderTbl(m,tname,title){
   var h='<div class="page-hdr"><div class="page-title">'+title+' <small>총 '+total+'건</small></div>';
   h+='<div class="page-actions">';
   h+='<button class="btn-dl-excel" data-dl-excel="tables|'+tname+'">⬇️ 엑셀 다운로드</button>';
-  h+='<button class="btn btn-purple" data-xl="tables|'+tname+'">📊 엑셀 일괄 등록</button>';
-  h+='<button class="btn btn-success" data-add="tables|'+tname+'">+ 항목 추가</button>';
+  if(canEdit()){
+    h+='<button class="btn btn-purple" data-xl="tables|'+tname+'">📊 엑셀 일괄 등록</button>';
+    h+='<button class="btn btn-success" data-add="tables|'+tname+'">+ 항목 추가</button>';
+  }
   h+='</div></div>';
   h+='<div class="toolbar">'+mkSearch('검색...')+'</div>';
-  h+='<div style="display:flex;align-items:center;padding:6px 0 4px"><button class="btn-del-sel" id="btn-del-sel">🗑️ 선택 삭제</button><span class="sel-count" id="sel-count"></span></div>';
+  if(canEdit()){h+='<div style="display:flex;align-items:center;padding:6px 0 4px"><button class="btn-del-sel" id="btn-del-sel">🗑️ 선택 삭제</button><span class="sel-count" id="sel-count"></span></div>';}
   h+='<div class="tbl-wrap"><table class="dtbl" id="cur-tbl"><thead><tr>';
-  h+='<th class="cb-col"><input type="checkbox" class="th-cb" id="th-cb" title="전체선택"></th>';
+  if(canEdit())h+='<th class="cb-col"><input type="checkbox" class="th-cb" id="th-cb" title="전체선택"></th>';
   heads.forEach(function(hd){h+='<th>'+hd+'</th>';});
-  h+='<th style="width:60px">관리</th></tr></thead><tbody>';
-  if(!prows.length)h+='<tr><td colspan="'+(cols.length+2)+'" class="empty">검색 결과 없음</td></tr>';
+  if(canEdit())h+='<th style="width:60px">관리</th>';
+  h+='</tr></thead><tbody>';
+  if(!prows.length)h+='<tr><td colspan="'+(cols.length+(canEdit()?2:0))+'" class="empty">검색 결과 없음</td></tr>';
   prows.forEach(function(r){
     var isN=LAST_NEW_ID&&r._id===LAST_NEW_ID;
     h+='<tr'+(isN?' class="new-row"':'')+' data-id="'+r._id+'" data-col="tables" data-tbl="'+tname+'">';
-    h+='<td class="cb-col"><input type="checkbox" class="row-cb" data-id="'+r._id+'" data-col="tables" data-tbl="'+tname+'"></td>';
+    if(canEdit())h+='<td class="cb-col"><input type="checkbox" class="row-cb" data-id="'+r._id+'" data-col="tables" data-tbl="'+tname+'"></td>';
     cols.forEach(function(k){var v=esc(r[k]||'');if(k==='status')v='<span class="tag '+(r[k]==='사용'?'t-ok':'t-off')+'">'+esc(r[k]||'')+'</span>';h+='<td style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+v+'</td>';});
-    h+='<td class="td-r"><button class="btn btn-warn btn-sm" data-edit="tables|'+r._id+'|'+tname+'">수정</button></td></tr>';
+    if(canEdit())h+='<td class="td-r"><button class="btn btn-warn btn-sm" data-edit="tables|'+r._id+'|'+tname+'">수정</button></td>';
+    h+='</tr>';
   });
   h+='</tbody></table>'+mkPager(total)+'</div>';
   m.innerHTML=h;bindEvents(m);bindCheckbox(m,rows);
@@ -1060,8 +1120,9 @@ var ACTION_LABEL = {
   'add'        : { label:'➕ 항목 추가', color:'#059669', bg:'#d1fae5' },
   'edit'       : { label:'✏️ 항목 수정', color:'#d97706', bg:'#fef3c7' },
   'delete'     : { label:'🗑️ 항목 삭제', color:'#dc2626', bg:'#fee2e2' },
-  'add_account': { label:'👤 계정 추가', color:'#7c3aed', bg:'#ede9fe' },
-  'del_account': { label:'👤 계정 삭제', color:'#be123c', bg:'#ffe4e6' },
+  'add_account':  { label:'👤 계정 추가', color:'#7c3aed', bg:'#ede9fe' },
+  'edit_account': { label:'✏️ 계정 수정', color:'#d97706', bg:'#fef3c7' },
+  'del_account':  { label:'👤 계정 삭제', color:'#be123c', bg:'#ffe4e6' },
   'bulk_add'   : { label:'📊 일괄 등록', color:'#0891b2', bg:'#cffafe' },
   'publish'    : { label:'⚡ 즉시 반영', color:'#b45309', bg:'#fef9c3' }
 };
@@ -1226,11 +1287,21 @@ async function renderAccounts(m){
   var h='<div class="page-hdr"><div class="page-title">👤 관리자 계정 <small>현재 접속 '+onlineCnt+'명</small></div>';
   h+='<div class="page-actions">';
   h+='<button class="btn btn-ghost" id="acc-refresh-btn">🔄 새로고침</button>';
-  h+='<button class="btn btn-success" id="add-acc-btn">+ 계정 추가</button>';
+  if(isMaster()) h+='<button class="btn btn-success" id="add-acc-btn">+ 계정 추가</button>';
   h+='</div></div>';
 
-  h+='<div class="tbl-wrap"><table class="dtbl"><thead><tr><th>상태</th><th>이메일</th><th>이름</th><th>마지막 접속</th><th>추가일</th><th>추가한 계정</th><th style="width:60px">관리</th></tr></thead><tbody>';
-  if(!DATA.accounts.length) h+='<tr><td colspan="7" class="empty">등록된 계정 없음 (모든 구글 계정 접근 가능!)</td></tr>';
+  // 역할 범례
+  h+='<div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">';
+  [['master','🔴 마스터','모든 권한','#dbeafe','#1d4ed8','#bfdbfe'],
+   ['manager','🟡 매니저','편집·삭제 가능 (모니터링·계정 관리 제외)','#d1fae5','#065f46','#a7f3d0'],
+   ['visitor','⚪ 방문자','뷰 전용','#f1f5f9','#64748b','#e2e8f0']].forEach(function(r){
+    h+='<div style="background:'+r[3]+';border:1px solid '+r[5]+';border-radius:10px;padding:8px 14px;font-size:12px;color:'+r[4]+';font-weight:600">';
+    h+=r[1]+' <span style="font-weight:400;color:'+r[4]+'">— '+r[2]+'</span></div>';
+  });
+  h+='</div>';
+
+  h+='<div class="tbl-wrap"><table class="dtbl"><thead><tr><th>상태</th><th>이메일</th><th>이름</th><th>권한 등급</th><th>마지막 접속</th><th>추가일</th><th>추가한 계정</th><th style="width:100px">관리</th></tr></thead><tbody>';
+  if(!DATA.accounts.length) h+='<tr><td colspan="8" class="empty">등록된 계정 없음 (모든 구글 계정 접근 가능!)</td></tr>';
   DATA.accounts.forEach(function(a){
     var p = presMap[a.email];
     var isOnline = p && p.online;
@@ -1241,31 +1312,127 @@ async function renderAccounts(m){
     var lastStr  = (p && p.last_seen)
       ? new Date(p.last_seen).toLocaleString('ko-KR',{timeZone:'Asia/Seoul',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'})
       : '<span style="color:#94a3c0">기록 없음</span>';
-    h+='<tr>';
+    var roleKey = a.role || 'master';
+    var rm = ROLE_META[roleKey] || ROLE_META.visitor;
+    var roleTag = '<span class="role-badge '+rm.cls+'">'+rm.label+'</span>';
+    var isSelf = CU && a.email === CU.email;
+    h+='<tr'+(isSelf?' style="background:#fffbeb"':'')+'>'; // 본인 행 하이라이트
     h+='<td>'+statusTag+'</td>';
-    h+='<td style="font-size:12px">'+esc(a.email)+'</td>';
+    h+='<td style="font-size:12px">'+esc(a.email)+(isSelf?' <span style="font-size:10px;color:#d97706;font-weight:700">(나)</span>':'')+'</td>';
     h+='<td style="font-size:12px">'+nameStr+'</td>';
+    h+='<td>'+roleTag+'</td>';
     h+='<td style="font-size:11px;color:#4b5680;white-space:nowrap">'+lastStr+'</td>';
     h+='<td style="font-size:11px;color:#94a3c0">'+esc(a.added_at||'')+'</td>';
     h+='<td style="font-size:11px;color:#94a3c0">'+esc(a.added_by||'')+'</td>';
-    h+='<td><button class="btn btn-danger btn-sm" data-delacc="'+a._id+'">삭제</button></td>';
+    if(isMaster()){
+      h+='<td style="display:flex;gap:4px;padding:8px 6px">';
+      h+='<button class="btn btn-warn btn-sm" data-editacc="'+a._id+'">수정</button>';
+      h+='<button class="btn btn-danger btn-sm" data-delacc="'+a._id+'"'+(isSelf?' disabled title="본인 계정 삭제 불가"':'')+'">삭제</button>';
+      h+='</td>';
+    } else {
+      h+='<td style="font-size:11px;color:#94a3c0;text-align:center">—</td>';
+    }
     h+='</tr>';
   });
   h+='</tbody></table></div>';
   h+='<div style="margin-top:12px;background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;padding:12px 16px;font-size:13px;color:#92400e;line-height:1.8">⚠️ 계정 목록이 비어있으면 모든 구글 계정이 접근 가능합니다. 최소 1개 이상 유지하세요!</div>';
   m.innerHTML=h;
   m.querySelector('#acc-refresh-btn').addEventListener('click', function(){ renderAccounts(m); });
-  m.querySelector('#add-acc-btn').addEventListener('click', function(){ addAcc(); });
-  m.querySelectorAll('[data-delacc]').forEach(function(el){ el.addEventListener('click', function(){ delAcc(this.dataset.delacc); }); });
+  if(isMaster()){ m.querySelector('#add-acc-btn') && m.querySelector('#add-acc-btn').addEventListener('click', function(){ addAcc(); }); }
+  m.querySelectorAll('[data-editacc]').forEach(function(el){ el.addEventListener('click', function(){ editAcc(this.dataset.editacc); }); });
+  m.querySelectorAll('[data-delacc]').forEach(function(el){ el.addEventListener('click', function(){ if(!this.disabled)delAcc(this.dataset.delacc); }); });
 }
-async function addAcc(){
-  var em=prompt('추가할 구글 이메일:');if(!em||!em.includes('@'))return;
-  var ref=await db.collection('admin_accounts').add({email:em.trim().toLowerCase(),added_at:new Date().toISOString().split('T')[0],added_by:CU.email});
-  logAdminAction('add_account', em.trim().toLowerCase());
-  DATA.accounts.push({_id:ref.id,email:em.trim().toLowerCase(),added_at:new Date().toISOString().split('T')[0],added_by:CU.email});
-  renderAccounts(document.getElementById('main'));
+function editAcc(id){
+  if(!isMaster()){alert('❌ 마스터 권한이 필요합니다.');return;}
+  var acc=DATA.accounts.find(function(a){return a._id===id;});
+  if(!acc)return;
+  var curRole=acc.role||'master';
+  var overlay=document.createElement('div');
+  overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9000;display:flex;align-items:center;justify-content:center;padding:20px';
+  overlay.innerHTML='<div style="background:#fff;border-radius:18px;padding:28px;width:100%;max-width:420px;box-shadow:0 24px 64px rgba(0,0,0,.3)">'
+    +'<div style="font-size:17px;font-weight:700;margin-bottom:20px;color:#1a1f36">✏️ 계정 수정</div>'
+    +'<div style="margin-bottom:14px">'
+    +'<div style="font-size:11px;font-weight:700;color:#94a3c0;margin-bottom:6px;text-transform:uppercase;letter-spacing:.04em">이메일 (변경 불가)</div>'
+    +'<div style="background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:8px;padding:9px 12px;font-size:13px;color:#4b5680">'+esc(acc.email)+'</div>'
+    +'</div>'
+    +'<div style="margin-bottom:22px">'
+    +'<div style="font-size:11px;font-weight:700;color:#94a3c0;margin-bottom:6px;text-transform:uppercase;letter-spacing:.04em">권한 등급</div>'
+    +'<select id="edit-acc-role" style="width:100%;background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:8px;padding:9px 12px;font-size:13px;font-family:\'Noto Sans KR\',sans-serif;color:#1a1f36;outline:none;cursor:pointer">'
+    +'<option value="master"'+(curRole==='master'?' selected':'')+'>🔴 마스터 — 모든 권한</option>'
+    +'<option value="manager"'+(curRole==='manager'?' selected':'')+'>🟡 매니저 — 편집·삭제 가능 (모니터링·계정 관리 제외)</option>'
+    +'<option value="visitor"'+(curRole==='visitor'?' selected':'')+'>⚪ 방문자 — 뷰 전용</option>'
+    +'</select>'
+    +'</div>'
+    +'<div style="display:flex;gap:8px;justify-content:flex-end">'
+    +'<button id="eacc-cancel" class="btn btn-ghost">취소</button>'
+    +'<button id="eacc-save" class="btn btn-primary">💾 저장</button>'
+    +'</div>'
+    +'<div id="eacc-msg" style="font-size:12px;margin-top:10px;color:#dc2626;text-align:right"></div>'
+    +'</div>';
+  document.body.appendChild(overlay);
+  overlay.querySelector('#eacc-cancel').addEventListener('click',function(){document.body.removeChild(overlay);});
+  overlay.addEventListener('click',function(e){if(e.target===overlay)document.body.removeChild(overlay);});
+  overlay.querySelector('#eacc-save').addEventListener('click',async function(){
+    var newRole=overlay.querySelector('#edit-acc-role').value;
+    var msgEl=overlay.querySelector('#eacc-msg');
+    msgEl.style.color='#4b5680'; msgEl.textContent='저장 중...';
+    try{
+      await db.collection('admin_accounts').doc(id).update({role:newRole});
+      acc.role=newRole;
+      logAdminAction('edit_account', acc.email+' → 역할: '+ROLE_META[newRole].label);
+      document.body.removeChild(overlay);
+      renderAccounts(document.getElementById('main'));
+    }catch(e){msgEl.style.color='#dc2626';msgEl.textContent='❌ 저장 실패: '+e.message;}
+  });
+}
+
+function addAcc(){
+  if(!isMaster()){alert('❌ 마스터 권한이 필요합니다.');return;}
+  var overlay=document.createElement('div');
+  overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9000;display:flex;align-items:center;justify-content:center;padding:20px';
+  overlay.innerHTML='<div style="background:#fff;border-radius:18px;padding:28px;width:100%;max-width:420px;box-shadow:0 24px 64px rgba(0,0,0,.3)">'
+    +'<div style="font-size:17px;font-weight:700;margin-bottom:20px;color:#1a1f36">👤 계정 추가</div>'
+    +'<div style="margin-bottom:14px">'
+    +'<div style="font-size:11px;font-weight:700;color:#94a3c0;margin-bottom:6px;text-transform:uppercase;letter-spacing:.04em">구글 이메일 <span style="color:#ef4444">*</span></div>'
+    +'<input id="nacc-email" type="email" placeholder="example@gmail.com" style="width:100%;background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:8px;padding:9px 12px;font-size:13px;font-family:\'Noto Sans KR\',sans-serif;color:#1a1f36;outline:none">'
+    +'</div>'
+    +'<div style="margin-bottom:22px">'
+    +'<div style="font-size:11px;font-weight:700;color:#94a3c0;margin-bottom:6px;text-transform:uppercase;letter-spacing:.04em">권한 등급 <span style="color:#ef4444">*</span></div>'
+    +'<select id="nacc-role" style="width:100%;background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:8px;padding:9px 12px;font-size:13px;font-family:\'Noto Sans KR\',sans-serif;color:#1a1f36;outline:none;cursor:pointer">'
+    +'<option value="master">🔴 마스터 — 모든 권한</option>'
+    +'<option value="manager" selected>🟡 매니저 — 편집·삭제 가능 (모니터링·계정 관리 제외)</option>'
+    +'<option value="visitor">⚪ 방문자 — 뷰 전용</option>'
+    +'</select>'
+    +'</div>'
+    +'<div style="display:flex;gap:8px;justify-content:flex-end">'
+    +'<button id="nacc-cancel" class="btn btn-ghost">취소</button>'
+    +'<button id="nacc-save" class="btn btn-success">+ 추가</button>'
+    +'</div>'
+    +'<div id="nacc-msg" style="font-size:12px;margin-top:10px;color:#dc2626;text-align:right"></div>'
+    +'</div>';
+  document.body.appendChild(overlay);
+  overlay.querySelector('#nacc-cancel').addEventListener('click',function(){document.body.removeChild(overlay);});
+  overlay.addEventListener('click',function(e){if(e.target===overlay)document.body.removeChild(overlay);});
+  overlay.querySelector('#nacc-save').addEventListener('click',async function(){
+    var em=overlay.querySelector('#nacc-email').value.trim().toLowerCase();
+    var role=overlay.querySelector('#nacc-role').value;
+    var msgEl=overlay.querySelector('#nacc-msg');
+    if(!em||!em.includes('@')){msgEl.textContent='❌ 올바른 이메일을 입력하세요.';return;}
+    if(DATA.accounts.find(function(a){return a.email===em;})){msgEl.textContent='❌ 이미 등록된 이메일입니다.';return;}
+    msgEl.style.color='#4b5680'; msgEl.textContent='저장 중...';
+    try{
+      var today=new Date().toISOString().split('T')[0];
+      var ref=await db.collection('admin_accounts').add({email:em,role:role,added_at:today,added_by:CU.email});
+      logAdminAction('add_account', em+' / 역할: '+ROLE_META[role].label);
+      DATA.accounts.push({_id:ref.id,email:em,role:role,added_at:today,added_by:CU.email});
+      document.body.removeChild(overlay);
+      renderAccounts(document.getElementById('main'));
+    }catch(e){msgEl.style.color='#dc2626';msgEl.textContent='❌ 추가 실패: '+e.message;}
+  });
 }
 async function delAcc(id){
+  if(!isMaster()){alert('❌ 마스터 권한이 필요합니다.');return;}
+  if(CU && DATA.accounts.find(function(a){return a._id===id&&a.email===CU.email;})){alert('❌ 본인 계정은 삭제할 수 없습니다.');return;}
   if(!confirm('삭제하시겠습니까?'))return;
   await db.collection('admin_accounts').doc(id).delete();
   logAdminAction('del_account', id);
@@ -1362,6 +1529,7 @@ function closeModal(){document.getElementById('modal').classList.remove('open');
 var IMG_UPLOADING = false;
 
 async function doSave(){
+  if(!canEdit()){alert('❌ 편집 권한이 없습니다. (방문자 계정)');return;}
   // 이미지 업로드 중이면 대기 안내
   if(IMG_UPLOADING){
     var msg=document.getElementById('modal-msg');
@@ -1390,6 +1558,7 @@ async function doSave(){
   }catch(e){msg.textContent='❌ '+e.message;msg.className='modal-msg err';}
 }
 async function doDelete(){
+  if(!canEdit()){alert('❌ 삭제 권한이 없습니다. (방문자 계정)');return;}
   if(!EDIT_ID||!confirm('삭제하시겠습니까? 복구 불가합니다.'))return;
   var tblName = EDIT_TBL || null;
   await db.collection(EDIT_COL).doc(EDIT_ID).delete();
