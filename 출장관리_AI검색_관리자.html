@@ -1270,7 +1270,10 @@ function renderAdminLogs(m) {
 
 /* ── 관리자 계정 ── */
 async function renderAccounts(m){
-  // presence 컬렉션에서 현재 접속자 목록 로드 (3분 이내 heartbeat = 접속 중)
+  // 즉시 로딩 표시 → 클릭 응답 확인
+  m.innerHTML='<div style="padding:40px;text-align:center;color:#94a3c0;font-size:14px"><div class="spin" style="border:3px solid #e2e8f0;border-top-color:#2563eb;border-radius:50%;width:28px;height:28px;animation:spin .8s linear infinite;margin:0 auto 12px"></div>계정 정보 로딩 중...</div>';
+
+  // presence 컬렉션에서 현재 접속자 목록 로드
   var presMap = {};
   try {
     var snap = await db.collection('presence').get();
@@ -1280,7 +1283,9 @@ async function renderAccounts(m){
       var ms = p.last_seen ? p.last_seen.toMillis() : 0;
       presMap[p.email] = { online: now - ms < 10 * 60 * 1000, name: p.name||'', last_seen: ms };
     });
-  } catch(e) { /* presence 읽기 실패 시 무시 */ }
+  } catch(e) { console.warn('[Accounts] presence 읽기 실패:', e.message); }
+
+  try {
 
   var onlineCnt = Object.values(presMap).filter(function(p){ return p.online; }).length;
 
@@ -1338,9 +1343,18 @@ async function renderAccounts(m){
   h+='<div style="margin-top:12px;background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;padding:12px 16px;font-size:13px;color:#92400e;line-height:1.8">⚠️ 계정 목록이 비어있으면 모든 구글 계정이 접근 가능합니다. 최소 1개 이상 유지하세요!</div>';
   m.innerHTML=h;
   m.querySelector('#acc-refresh-btn').addEventListener('click', function(){ renderAccounts(m); });
-  if(isMaster()){ m.querySelector('#add-acc-btn') && m.querySelector('#add-acc-btn').addEventListener('click', function(){ addAcc(); }); }
+  if(isMaster()){ var addBtn=m.querySelector('#add-acc-btn'); if(addBtn) addBtn.addEventListener('click', function(){ addAcc(); }); }
   m.querySelectorAll('[data-editacc]').forEach(function(el){ el.addEventListener('click', function(){ editAcc(this.dataset.editacc); }); });
   m.querySelectorAll('[data-delacc]').forEach(function(el){ el.addEventListener('click', function(){ if(!this.disabled)delAcc(this.dataset.delacc); }); });
+  } catch(e) {
+    console.error('[Accounts] 렌더링 오류:', e);
+    m.innerHTML='<div style="padding:40px;text-align:center">'
+      +'<div style="font-size:36px;margin-bottom:12px">⚠️</div>'
+      +'<div style="font-size:15px;font-weight:700;color:#dc2626;margin-bottom:8px">계정 페이지 로딩 실패</div>'
+      +'<div style="font-size:12px;color:#94a3c0;margin-bottom:20px">'+esc(e.message)+'</div>'
+      +'<button onclick="renderAccounts(document.getElementById(\'main\'))" class="btn btn-primary">🔄 다시 시도</button>'
+      +'</div>';
+  }
 }
 function editAcc(id){
   if(!isMaster()){alert('❌ 마스터 권한이 필요합니다.');return;}
