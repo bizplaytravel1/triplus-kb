@@ -1308,7 +1308,7 @@ async function renderAccounts(m){
     var statusTag = isOnline
       ? '<span style="display:inline-flex;align-items:center;gap:4px;background:#d1fae5;color:#065f46;border-radius:20px;padding:2px 10px;font-size:11px;font-weight:700">🟢 접속</span>'
       : '<span style="display:inline-flex;align-items:center;gap:4px;background:#f1f5f9;color:#94a3c0;border-radius:20px;padding:2px 10px;font-size:11px;font-weight:600">⚫ 미접속</span>';
-    var nameStr  = (p && p.name) ? esc(p.name) : '<span style="color:#94a3c0">-</span>';
+    var nameStr  = acc.name ? esc(acc.name) : (p && p.name) ? esc(p.name) : '<span style="color:#94a3c0">-</span>';
     var lastStr  = (p && p.last_seen)
       ? new Date(p.last_seen).toLocaleString('ko-KR',{timeZone:'Asia/Seoul',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'})
       : '<span style="color:#94a3c0">기록 없음</span>';
@@ -1347,6 +1347,8 @@ function editAcc(id){
   var acc=DATA.accounts.find(function(a){return a._id===id;});
   if(!acc)return;
   var curRole=acc.role||'master';
+  var curName=acc.name||'';
+  var FLD='width:100%;background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:8px;padding:9px 12px;font-size:13px;font-family:\'Noto Sans KR\',sans-serif;color:#1a1f36;outline:none';
   var overlay=document.createElement('div');
   overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9000;display:flex;align-items:center;justify-content:center;padding:20px';
   overlay.innerHTML='<div style="background:#fff;border-radius:18px;padding:28px;width:100%;max-width:420px;box-shadow:0 24px 64px rgba(0,0,0,.3)">'
@@ -1355,9 +1357,13 @@ function editAcc(id){
     +'<div style="font-size:11px;font-weight:700;color:#94a3c0;margin-bottom:6px;text-transform:uppercase;letter-spacing:.04em">이메일 (변경 불가)</div>'
     +'<div style="background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:8px;padding:9px 12px;font-size:13px;color:#4b5680">'+esc(acc.email)+'</div>'
     +'</div>'
+    +'<div style="margin-bottom:14px">'
+    +'<div style="font-size:11px;font-weight:700;color:#94a3c0;margin-bottom:6px;text-transform:uppercase;letter-spacing:.04em">이름</div>'
+    +'<input id="edit-acc-name" type="text" placeholder="이름 입력 (예: 홍길동)" value="'+esc(curName)+'" style="'+FLD+'">'
+    +'</div>'
     +'<div style="margin-bottom:22px">'
     +'<div style="font-size:11px;font-weight:700;color:#94a3c0;margin-bottom:6px;text-transform:uppercase;letter-spacing:.04em">권한 등급</div>'
-    +'<select id="edit-acc-role" style="width:100%;background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:8px;padding:9px 12px;font-size:13px;font-family:\'Noto Sans KR\',sans-serif;color:#1a1f36;outline:none;cursor:pointer">'
+    +'<select id="edit-acc-role" style="'+FLD+';cursor:pointer">'
     +'<option value="master"'+(curRole==='master'?' selected':'')+'>🔴 마스터 — 모든 권한</option>'
     +'<option value="manager"'+(curRole==='manager'?' selected':'')+'>🟡 매니저 — 편집·삭제 가능 (모니터링·계정 관리 제외)</option>'
     +'<option value="visitor"'+(curRole==='visitor'?' selected':'')+'>⚪ 방문자 — 뷰 전용</option>'
@@ -1374,12 +1380,15 @@ function editAcc(id){
   overlay.addEventListener('click',function(e){if(e.target===overlay)document.body.removeChild(overlay);});
   overlay.querySelector('#eacc-save').addEventListener('click',async function(){
     var newRole=overlay.querySelector('#edit-acc-role').value;
+    var newName=overlay.querySelector('#edit-acc-name').value.trim();
     var msgEl=overlay.querySelector('#eacc-msg');
     msgEl.style.color='#4b5680'; msgEl.textContent='저장 중...';
     try{
-      await db.collection('admin_accounts').doc(id).update({role:newRole});
-      acc.role=newRole;
-      logAdminAction('edit_account', acc.email+' → 역할: '+ROLE_META[newRole].label);
+      var updateData={role:newRole};
+      if(newName) updateData.name=newName; else updateData.name='';
+      await db.collection('admin_accounts').doc(id).update(updateData);
+      acc.role=newRole; acc.name=newName;
+      logAdminAction('edit_account', acc.email+' → 이름: '+(newName||'(없음)')+', 역할: '+ROLE_META[newRole].label);
       document.body.removeChild(overlay);
       renderAccounts(document.getElementById('main'));
     }catch(e){msgEl.style.color='#dc2626';msgEl.textContent='❌ 저장 실패: '+e.message;}
@@ -1388,17 +1397,22 @@ function editAcc(id){
 
 function addAcc(){
   if(!isMaster()){alert('❌ 마스터 권한이 필요합니다.');return;}
+  var FLD='width:100%;background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:8px;padding:9px 12px;font-size:13px;font-family:\'Noto Sans KR\',sans-serif;color:#1a1f36;outline:none';
   var overlay=document.createElement('div');
   overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9000;display:flex;align-items:center;justify-content:center;padding:20px';
   overlay.innerHTML='<div style="background:#fff;border-radius:18px;padding:28px;width:100%;max-width:420px;box-shadow:0 24px 64px rgba(0,0,0,.3)">'
     +'<div style="font-size:17px;font-weight:700;margin-bottom:20px;color:#1a1f36">👤 계정 추가</div>'
     +'<div style="margin-bottom:14px">'
     +'<div style="font-size:11px;font-weight:700;color:#94a3c0;margin-bottom:6px;text-transform:uppercase;letter-spacing:.04em">구글 이메일 <span style="color:#ef4444">*</span></div>'
-    +'<input id="nacc-email" type="email" placeholder="example@gmail.com" style="width:100%;background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:8px;padding:9px 12px;font-size:13px;font-family:\'Noto Sans KR\',sans-serif;color:#1a1f36;outline:none">'
+    +'<input id="nacc-email" type="email" placeholder="example@gmail.com" style="'+FLD+'">'
+    +'</div>'
+    +'<div style="margin-bottom:14px">'
+    +'<div style="font-size:11px;font-weight:700;color:#94a3c0;margin-bottom:6px;text-transform:uppercase;letter-spacing:.04em">이름</div>'
+    +'<input id="nacc-name" type="text" placeholder="이름 입력 (예: 홍길동)" style="'+FLD+'">'
     +'</div>'
     +'<div style="margin-bottom:22px">'
     +'<div style="font-size:11px;font-weight:700;color:#94a3c0;margin-bottom:6px;text-transform:uppercase;letter-spacing:.04em">권한 등급 <span style="color:#ef4444">*</span></div>'
-    +'<select id="nacc-role" style="width:100%;background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:8px;padding:9px 12px;font-size:13px;font-family:\'Noto Sans KR\',sans-serif;color:#1a1f36;outline:none;cursor:pointer">'
+    +'<select id="nacc-role" style="'+FLD+';cursor:pointer">'
     +'<option value="master">🔴 마스터 — 모든 권한</option>'
     +'<option value="manager" selected>🟡 매니저 — 편집·삭제 가능 (모니터링·계정 관리 제외)</option>'
     +'<option value="visitor">⚪ 방문자 — 뷰 전용</option>'
@@ -1411,10 +1425,13 @@ function addAcc(){
     +'<div id="nacc-msg" style="font-size:12px;margin-top:10px;color:#dc2626;text-align:right"></div>'
     +'</div>';
   document.body.appendChild(overlay);
+  // 이메일 입력 후 이름 필드로 포커스 이동
+  overlay.querySelector('#nacc-email').addEventListener('keydown',function(e){if(e.key==='Tab'||e.key==='Enter'){e.preventDefault();overlay.querySelector('#nacc-name').focus();}});
   overlay.querySelector('#nacc-cancel').addEventListener('click',function(){document.body.removeChild(overlay);});
   overlay.addEventListener('click',function(e){if(e.target===overlay)document.body.removeChild(overlay);});
   overlay.querySelector('#nacc-save').addEventListener('click',async function(){
     var em=overlay.querySelector('#nacc-email').value.trim().toLowerCase();
+    var name=overlay.querySelector('#nacc-name').value.trim();
     var role=overlay.querySelector('#nacc-role').value;
     var msgEl=overlay.querySelector('#nacc-msg');
     if(!em||!em.includes('@')){msgEl.textContent='❌ 올바른 이메일을 입력하세요.';return;}
@@ -1422,9 +1439,11 @@ function addAcc(){
     msgEl.style.color='#4b5680'; msgEl.textContent='저장 중...';
     try{
       var today=new Date().toISOString().split('T')[0];
-      var ref=await db.collection('admin_accounts').add({email:em,role:role,added_at:today,added_by:CU.email});
-      logAdminAction('add_account', em+' / 역할: '+ROLE_META[role].label);
-      DATA.accounts.push({_id:ref.id,email:em,role:role,added_at:today,added_by:CU.email});
+      var docData={email:em,role:role,added_at:today,added_by:CU.email};
+      if(name) docData.name=name;
+      var ref=await db.collection('admin_accounts').add(docData);
+      logAdminAction('add_account', em+(name?' ('+name+')':'')+' / 역할: '+ROLE_META[role].label);
+      DATA.accounts.push(Object.assign({_id:ref.id},docData));
       document.body.removeChild(overlay);
       renderAccounts(document.getElementById('main'));
     }catch(e){msgEl.style.color='#dc2626';msgEl.textContent='❌ 추가 실패: '+e.message;}
