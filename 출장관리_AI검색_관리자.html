@@ -1308,7 +1308,7 @@ async function renderAccounts(m){
     var statusTag = isOnline
       ? '<span style="display:inline-flex;align-items:center;gap:4px;background:#d1fae5;color:#065f46;border-radius:20px;padding:2px 10px;font-size:11px;font-weight:700">🟢 접속</span>'
       : '<span style="display:inline-flex;align-items:center;gap:4px;background:#f1f5f9;color:#94a3c0;border-radius:20px;padding:2px 10px;font-size:11px;font-weight:600">⚫ 미접속</span>';
-    var nameStr  = acc.name ? esc(acc.name) : (p && p.name) ? esc(p.name) : '<span style="color:#94a3c0">-</span>';
+    var nameStr  = a.name ? esc(a.name) : (p && p.name) ? esc(p.name) : '<span style="color:#94a3c0">-</span>';
     var lastStr  = (p && p.last_seen)
       ? new Date(p.last_seen).toLocaleString('ko-KR',{timeZone:'Asia/Seoul',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'})
       : '<span style="color:#94a3c0">기록 없음</span>';
