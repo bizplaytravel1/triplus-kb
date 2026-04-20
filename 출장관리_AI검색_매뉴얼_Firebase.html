@@ -2233,6 +2233,22 @@ async function init() {
     var skEl=document.getElementById("sk-search"); if(skEl) skEl.addEventListener("input", renderSukbak);
     var ywEl=document.getElementById("yw-search"); if(ywEl) ywEl.addEventListener("input", renderYowei);
     var gtEl=document.getElementById("gt-search"); if(gtEl) gtEl.addEventListener("input", renderGita);
+    // 탭 내 검색 로그 (1초 디바운스 — 타이핑 완료 후 기록)
+    var _tsTimer = {};
+    function bindTabSearchLog(el, tabName) {
+      if (!el) return;
+      el.addEventListener("input", function() {
+        var kw = this.value.trim();
+        clearTimeout(_tsTimer[tabName]);
+        if (!kw) return; // 빈 검색어 로그 안함
+        _tsTimer[tabName] = setTimeout(function() {
+          logAccess('tab_search', { tab_name: tabName, query: kw });
+        }, 1000);
+      });
+    }
+    bindTabSearchLog(jfEl, '증빙규정');
+    bindTabSearchLog(ywEl, '예외거리구간');
+    bindTabSearchLog(gtEl, '기타교통수단구간');
     buildJfFilters();
     buildYwFilters();
     renderJungbig();

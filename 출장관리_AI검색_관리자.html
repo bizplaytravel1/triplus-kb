@@ -999,15 +999,16 @@ function renderLogs(m) {
   h += '<div class="toolbar">';
   h += '<div class="search-wrap"><input class="search-inp" id="logs-kw" placeholder="검색어, 탭명, 브라우저로 필터..." value="'+esc(LOGS_KW)+'"></div>';
   h += '<div class="fchips">';
-  [['all','전체'],['visit','방문'],['search','검색'],['tab','탭이동']].forEach(function(t){
+  [['all','전체'],['visit','방문'],['search','검색'],['tab','탭이동'],['tab_search','탭검색']].forEach(function(t){
     h += '<button class="fchip'+(LOGS_TYPE===t[0]?' on':'')+'" data-ltype="'+t[0]+'">'+t[1]+'</button>';
   });
   h += '</div></div>';
 
   // ── 통계 요약
-  var visitCnt  = LOGS_DATA.filter(function(r){return r.type==='visit';}).length;
-  var searchCnt = LOGS_DATA.filter(function(r){return r.type==='search';}).length;
-  var tabCnt    = LOGS_DATA.filter(function(r){return r.type==='tab';}).length;
+  var visitCnt     = LOGS_DATA.filter(function(r){return r.type==='visit';}).length;
+  var searchCnt    = LOGS_DATA.filter(function(r){return r.type==='search';}).length;
+  var tabCnt       = LOGS_DATA.filter(function(r){return r.type==='tab';}).length;
+  var tabSearchCnt = LOGS_DATA.filter(function(r){return r.type==='tab_search';}).length;
   // 탭별 방문 집계
   var tabMap = {};
   LOGS_DATA.filter(function(r){return r.type==='tab'&&r.tab_name;}).forEach(function(r){
@@ -1025,6 +1026,9 @@ function renderLogs(m) {
   h += '<div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:12px 20px;flex:1;min-width:110px">';
   h += '<div style="font-size:11px;color:#94a3c0;font-weight:700;margin-bottom:4px">탭 이동</div>';
   h += '<div style="font-size:22px;font-weight:700;color:#7c3aed">'+tabCnt+'</div></div>';
+  h += '<div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:12px 20px;flex:1;min-width:110px">';
+  h += '<div style="font-size:11px;color:#94a3c0;font-weight:700;margin-bottom:4px">탭 내 검색</div>';
+  h += '<div style="font-size:22px;font-weight:700;color:#0891b2">'+tabSearchCnt+'</div></div>';
   h += '<div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:12px 20px;flex:2;min-width:160px">';
   h += '<div style="font-size:11px;color:#94a3c0;font-weight:700;margin-bottom:4px">가장 많이 본 탭</div>';
   h += '<div style="font-size:15px;font-weight:700;color:#d97706">'+esc(topTab)+(topTab!=='-'?' <span style="font-size:12px;color:#94a3c0;font-weight:400">('+tabMap[topTab]+'회)</span>':'')+'</div></div>';
@@ -1060,6 +1064,7 @@ function renderLogs(m) {
       var typeTag;
       if (r.type==='search') typeTag = '<span class="tag t-ok">검색</span>';
       else if (r.type==='tab') typeTag = '<span class="tag" style="background:#ede9fe;color:#6d28d9">탭이동</span>';
+      else if (r.type==='tab_search') typeTag = '<span class="tag" style="background:#cffafe;color:#0e7490">탭검색</span>';
       else typeTag = '<span class="tag t-off">방문</span>';
       var dt  = r.ts ? new Date(r.ts).toLocaleString('ko-KR',{timeZone:'Asia/Seoul'}) : '-';
       // 검색어 or 탭명 표시
@@ -1068,6 +1073,9 @@ function renderLogs(m) {
         queryCell = esc(r.query);
       } else if (r.type==='tab' && r.tab_name) {
         queryCell = '<span style="background:#ede9fe;color:#6d28d9;border-radius:6px;padding:2px 7px;font-size:11px;font-weight:600">📑 '+esc(r.tab_name)+'</span>';
+      } else if (r.type==='tab_search') {
+        queryCell = (r.tab_name ? '<span style="background:#cffafe;color:#0e7490;border-radius:6px;padding:2px 7px;font-size:11px;font-weight:600">📑 '+esc(r.tab_name)+'</span> → ' : '')
+                  + (r.query ? '<span style="font-weight:600">'+esc(r.query)+'</span>' : '<span style="color:#94a3c0">-</span>');
       } else {
         queryCell = '<span style="color:#94a3c0">-</span>';
       }
