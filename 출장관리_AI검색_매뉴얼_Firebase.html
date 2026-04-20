@@ -1848,8 +1848,9 @@ function logAccess(type, extra) {
       referrer: document.referrer || ''
     };
     if (extra) {
-      if (extra.query !== undefined) doc.query = extra.query;
+      if (extra.query      !== undefined) doc.query        = extra.query;
       if (extra.result_count !== undefined) doc.result_count = extra.result_count;
+      if (extra.tab_name   !== undefined) doc.tab_name     = extra.tab_name;
     }
     db.collection('access_logs').add(doc);
   } catch(e) { /* 로그 실패는 무시 */ }
@@ -2250,6 +2251,18 @@ async function init() {
 }
 
 
+var TAB_LABELS = {
+  search:   'AI 검색',
+  jungbig:  '증빙규정',
+  sukbak:   '숙박비규정',
+  yowei:    '예외거리구간',
+  gita:     '기타교통수단구간',
+  overseas: '해외출장',
+  domman:   '국내출장매뉴얼',
+  nanyang:  '남양시내교통비',
+  sinai:    '시내교통비 신청'
+};
+
 function gotoPage(name) {
   var pages = document.querySelectorAll(".page");
   for (var i = 0; i < pages.length; i++) pages[i].classList.remove("active");
@@ -2263,6 +2276,10 @@ function gotoPage(name) {
   if (name === "gita")    renderGita();
   if (name === "overseas") renderOverseas();
   if (name === "nanyang")  renderNanyang();
+  // 탭 이동 로그 기록 (AI검색 탭 제외 — 방문 로그로 이미 기록됨)
+  if (name !== 'search') {
+    logAccess('tab', { tab_name: TAB_LABELS[name] || name });
+  }
 }
 window.gotoPage = gotoPage;
 

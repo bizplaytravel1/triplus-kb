@@ -974,6 +974,7 @@ function renderLogs(m) {
     var kw = LOGS_KW.toLowerCase();
     rows = rows.filter(function(r){
       return (r.query||'').toLowerCase().indexOf(kw)>=0
+          || (r.tab_name||'').toLowerCase().indexOf(kw)>=0
           || (r.ua||'').toLowerCase().indexOf(kw)>=0
           || (r.lang||'').toLowerCase().indexOf(kw)>=0;
     });
@@ -996,55 +997,96 @@ function renderLogs(m) {
 
   // ── 필터
   h += '<div class="toolbar">';
-  h += '<div class="search-wrap"><input class="search-inp" id="logs-kw" placeholder="검색어, 브라우저로 필터..." value="'+esc(LOGS_KW)+'"></div>';
+  h += '<div class="search-wrap"><input class="search-inp" id="logs-kw" placeholder="검색어, 탭명, 브라우저로 필터..." value="'+esc(LOGS_KW)+'"></div>';
   h += '<div class="fchips">';
-  ['all','visit','search'].forEach(function(t){
-    var label = t==='all'?'전체':t==='visit'?'방문':'검색';
-    h += '<button class="fchip'+(LOGS_TYPE===t?' on':'')+'" data-ltype="'+t+'">'+label+'</button>';
+  [['all','전체'],['visit','방문'],['search','검색'],['tab','탭이동']].forEach(function(t){
+    h += '<button class="fchip'+(LOGS_TYPE===t[0]?' on':'')+'" data-ltype="'+t[0]+'">'+t[1]+'</button>';
   });
   h += '</div></div>';
 
   // ── 통계 요약
   var visitCnt  = LOGS_DATA.filter(function(r){return r.type==='visit';}).length;
   var searchCnt = LOGS_DATA.filter(function(r){return r.type==='search';}).length;
+  var tabCnt    = LOGS_DATA.filter(function(r){return r.type==='tab';}).length;
+  // 탭별 방문 집계
+  var tabMap = {};
+  LOGS_DATA.filter(function(r){return r.type==='tab'&&r.tab_name;}).forEach(function(r){
+    tabMap[r.tab_name] = (tabMap[r.tab_name]||0) + 1;
+  });
+  var topTab = Object.keys(tabMap).sort(function(a,b){return tabMap[b]-tabMap[a];})[0] || '-';
+
   h += '<div style="display:flex;gap:12px;margin-bottom:14px;flex-wrap:wrap">';
-  h += '<div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:12px 20px;flex:1;min-width:120px">';
+  h += '<div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:12px 20px;flex:1;min-width:110px">';
   h += '<div style="font-size:11px;color:#94a3c0;font-weight:700;margin-bottom:4px">총 방문</div>';
   h += '<div style="font-size:22px;font-weight:700;color:#2563eb">'+visitCnt+'</div></div>';
-  h += '<div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:12px 20px;flex:1;min-width:120px">';
+  h += '<div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:12px 20px;flex:1;min-width:110px">';
   h += '<div style="font-size:11px;color:#94a3c0;font-weight:700;margin-bottom:4px">총 검색</div>';
   h += '<div style="font-size:22px;font-weight:700;color:#059669">'+searchCnt+'</div></div>';
-  h += '<div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:12px 20px;flex:1;min-width:120px">';
+  h += '<div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:12px 20px;flex:1;min-width:110px">';
+  h += '<div style="font-size:11px;color:#94a3c0;font-weight:700;margin-bottom:4px">탭 이동</div>';
+  h += '<div style="font-size:22px;font-weight:700;color:#7c3aed">'+tabCnt+'</div></div>';
+  h += '<div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:12px 20px;flex:2;min-width:160px">';
+  h += '<div style="font-size:11px;color:#94a3c0;font-weight:700;margin-bottom:4px">가장 많이 본 탭</div>';
+  h += '<div style="font-size:15px;font-weight:700;color:#d97706">'+esc(topTab)+(topTab!=='-'?' <span style="font-size:12px;color:#94a3c0;font-weight:400">('+tabMap[topTab]+'회)</span>':'')+'</div></div>';
+  h += '<div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:12px 20px;flex:1;min-width:110px">';
   h += '<div style="font-size:11px;color:#94a3c0;font-weight:700;margin-bottom:4px">조회 범위</div>';
   h += '<div style="font-size:14px;font-weight:700;color:#4b5680">최근 500건</div></div>';
   h += '</div>';
 
+  // 탭별 상세 통계 (탭 이동이 있는 경우만)
+  if (tabCnt > 0) {
+    h += '<div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:14px 18px;margin-bottom:14px">';
+    h += '<div style="font-size:12px;font-weight:700;color:#4b5680;margin-bottom:10px">📑 탭별 조회 현황</div>';
+    h += '<div style="display:flex;gap:8px;flex-wrap:wrap">';
+    var tabOrder = ['증빙규정','숙박비규정','예외거리구간','기타교통수단구간','해외출장','국내출장매뉴얼','남양시내교통비','시내교통비 신청'];
+    tabOrder.forEach(function(tn){
+      if (!tabMap[tn]) return;
+      var pct = Math.round(tabMap[tn]/tabCnt*100);
+      h += '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:6px 12px;font-size:12px">';
+      h += '<span style="color:#4b5680;font-weight:600">'+esc(tn)+'</span> ';
+      h += '<span style="color:#2563eb;font-weight:700">'+tabMap[tn]+'회</span> ';
+      h += '<span style="color:#94a3c0">('+pct+'%)</span></div>';
+    });
+    h += '</div></div>';
+  }
+
   // ── 테이블
   h += '<div class="tbl-wrap"><table class="dtbl">';
-  h += '<thead><tr><th>유형</th><th>일시</th><th>검색어</th><th>결과수</th><th>언어</th><th>브라우저 / OS</th><th>화면</th></tr></thead><tbody>';
+  h += '<thead><tr><th>유형</th><th>일시</th><th>검색어 / 탭명</th><th>결과수</th><th>언어</th><th>브라우저 / OS</th><th>화면</th></tr></thead><tbody>';
   if (prows.length === 0) {
     h += '<tr><td colspan="7" style="text-align:center;padding:30px;color:#94a3c0">데이터가 없습니다.</td></tr>';
   } else {
     prows.forEach(function(r) {
-      var typeTag = r.type==='search' ? '<span class="tag t-ok">검색</span>' : '<span class="tag t-off">방문</span>';
+      var typeTag;
+      if (r.type==='search') typeTag = '<span class="tag t-ok">검색</span>';
+      else if (r.type==='tab') typeTag = '<span class="tag" style="background:#ede9fe;color:#6d28d9">탭이동</span>';
+      else typeTag = '<span class="tag t-off">방문</span>';
       var dt  = r.ts ? new Date(r.ts).toLocaleString('ko-KR',{timeZone:'Asia/Seoul'}) : '-';
-      var query = r.query ? esc(r.query) : '<span style="color:#94a3c0">-</span>';
+      // 검색어 or 탭명 표시
+      var queryCell;
+      if (r.type==='search' && r.query) {
+        queryCell = esc(r.query);
+      } else if (r.type==='tab' && r.tab_name) {
+        queryCell = '<span style="background:#ede9fe;color:#6d28d9;border-radius:6px;padding:2px 7px;font-size:11px;font-weight:600">📑 '+esc(r.tab_name)+'</span>';
+      } else {
+        queryCell = '<span style="color:#94a3c0">-</span>';
+      }
       var resCnt = r.result_count !== undefined ? r.result_count : '-';
       var ua = r.ua || '';
       var browser = '기타';
-      if (ua.indexOf('Edg')>=0)     browser='Edge';
+      if (ua.indexOf('Edg')>=0)          browser='Edge';
       else if (ua.indexOf('Chrome')>=0)  browser='Chrome';
       else if (ua.indexOf('Firefox')>=0) browser='Firefox';
       else if (ua.indexOf('Safari')>=0)  browser='Safari';
       var os = '';
-      if (ua.indexOf('Windows')>=0) os='Windows';
-      else if (ua.indexOf('Mac')>=0) os='Mac';
+      if (ua.indexOf('Windows')>=0)      os='Windows';
+      else if (ua.indexOf('Mac')>=0)     os='Mac';
       else if (ua.indexOf('Android')>=0) os='Android';
       else if (ua.indexOf('iPhone')>=0||ua.indexOf('iPad')>=0) os='iOS';
       h += '<tr>';
       h += '<td>'+typeTag+'</td>';
       h += '<td style="white-space:nowrap;font-size:12px">'+dt+'</td>';
-      h += '<td class="clip-lg">'+query+'</td>';
+      h += '<td class="clip-lg">'+queryCell+'</td>';
       h += '<td class="td-r">'+(r.type==='search'?resCnt:'-')+'</td>';
       h += '<td style="font-size:12px">'+esc(r.lang||'-')+'</td>';
       h += '<td style="font-size:12px">'+esc(browser)+(os?' / '+esc(os):'')+'</td>';
